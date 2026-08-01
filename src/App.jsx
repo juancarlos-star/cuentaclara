@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, AreaChart, Area,
@@ -596,14 +596,16 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
       .sort((a, b) => b.total - a.total);
   }, [periodTx, categories, accountFilter]);
 
-  const recent = transactions.filter((t) => filterByAccount(t, accountFilter)).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+  const recent = period.type === "custom"
+    ? [...periodTx].sort((a, b) => new Date(b.date) - new Date(a.date))
+    : transactions.filter((t) => filterByAccount(t, accountFilter)).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
   const balanceMap = useMemo(() => computeRunningBalances(accounts, transactions), [accounts, transactions]);
 
   const spendRatio = income > 0 ? Math.min(100, (expense / income) * 100) : (expense > 0 ? 100 : 0);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 3000, tolerance: 10 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 2000, tolerance: 10 } })
   );
 
   const sectionContent = {
@@ -626,7 +628,7 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
     ),
     ratio: (
       <Card>
-        <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center justify-between mb-1.5" style={{ paddingRight: 28 }}>
           <span className="text-[13px] font-medium" style={{ color: C.inkSoft }}>Gastado sobre lo ingresado</span>
           <span className="text-[13px] font-semibold" style={{ color: C.ink }}>{spendRatio.toFixed(0)}%</span>
         </div>
@@ -1448,7 +1450,11 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [tab, setTab] = useState("inicio");
   const [accountFilter, setAccountFilter] = useState("all");
-  const [dashPeriod, setDashPeriod] = useState({ type: "month", anchor: new Date() });
+  const [dashPeriod, setDashPeriod] = useState({ type: "month", anchor: new Date(), customStart: "", customEnd: isoDay(new Date()) });
+  // Tracks whether the user manually edited the "hasta" (custom end) date.
+  // While false, customEnd is recomputed to today's date on every app load.
+  const customEndManualRef = useRef(false);
+  const prevDashPeriodRef = useRef(dashPeriod);
   const [modal, setModal] = useState({ open: false, editing: null, defaultType: "expense" });
   const [menuOpen, setMenuOpen] = useState(false);
   const [fabExpanded, setFabExpanded] = useState(false);
@@ -1494,6 +1500,23 @@ export default function App() {
         applyTheme(loaded.theme === "dark");
         applyFormatSettings(loaded);
       } catch { /* keep defaults */ }
+      try {
+        const af = await window.storage.get("dash-account-filter");
+        setAccountFilter(JSON.parse(af.value));
+      } catch { /* keep default "all" */ }
+      try {
+        const dp = await window.storage.get("dash-period-prefs");
+        const loaded = JSON.parse(dp.value);
+        customEndManualRef.current = !!loaded.customEndManual;
+        const restored = {
+          type: loaded.type || "month",
+          anchor: new Date(),
+          customStart: loaded.customStart || "",
+          customEnd: loaded.customEndManual && loaded.customEndValue ? loaded.customEndValue : isoDay(new Date()),
+        };
+        prevDashPeriodRef.current = restored;
+        setDashPeriod(restored);
+      } catch { /* keep defaults */ }
       setLoading(false);
     })();
   }, []);
@@ -1505,6 +1528,24 @@ export default function App() {
   useEffect(() => { if (!loading) safeSet("transactions", transactions); }, [transactions, loading]);
   useEffect(() => { if (!loading) safeSet("savings-sim", sim); }, [sim, loading]);
   useEffect(() => { if (!loading) safeSet("settings", settings); }, [settings, loading]);
+  useEffect(() => { if (!loading) safeSet("dash-account-filter", accountFilter); }, [accountFilter, loading]);
+  useEffect(() => {
+    if (loading) { prevDashPeriodRef.current = dashPeriod; return; }
+    const prev = prevDashPeriodRef.current;
+    // Only a direct edit of "hasta" (customEnd) — with type/customStart
+    // unchanged — counts as a manual override; anchor navigation or type
+    // switches don't touch the flag.
+    if (dashPeriod.customEnd !== prev.customEnd && dashPeriod.type === prev.type && dashPeriod.customStart === prev.customStart) {
+      customEndManualRef.current = true;
+    }
+    safeSet("dash-period-prefs", {
+      type: dashPeriod.type,
+      customStart: dashPeriod.customStart || "",
+      customEndManual: customEndManualRef.current,
+      customEndValue: customEndManualRef.current ? dashPeriod.customEnd : "",
+    });
+    prevDashPeriodRef.current = dashPeriod;
+  }, [dashPeriod, loading]);
 
   // Settings mutate the module-level C/FMT objects synchronously so every
   // component picks up the change on the next render triggered by setSettings.
