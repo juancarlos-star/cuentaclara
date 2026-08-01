@@ -19,7 +19,7 @@ import {
   LayoutGrid, List, PieChart as PieIcon, Settings, Search, Menu, Mail, Code2,
   Coffee, Plane, Gamepad2, Dumbbell, Baby, Dog, Fuel, Wifi, Shirt,
   Stethoscope, Film, Music, BookOpen, Wrench, TreePine, Bus, Bike,
-  Scissors, PawPrint, Umbrella, Download,
+  Scissors, PawPrint, Umbrella, Download, GripVertical,
 } from "lucide-react";
 
 /* ---------------------------------- tokens ---------------------------------- */
@@ -540,7 +540,11 @@ function TxRow({ tx, categories, accounts, onClick, balanceAfter }) {
 }
 
 // Same idea, for reordering whole dashboard cards on Inicio.
-function SortableSection({ id, children }) {
+// The drag listeners live ONLY on the small grip handle (not the whole card),
+// so the rest of the card's surface stays 100% natively scrollable on touch —
+// this avoids the browser/JS race that happens when touch-action:none covers
+// a large swipeable area (holding still for a delay isn't reliable on iOS).
+function SortableSection({ id, children, dark }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -548,10 +552,22 @@ function SortableSection({ id, children }) {
     opacity: isDragging ? 0.6 : 1,
     zIndex: isDragging ? 10 : "auto",
     position: "relative",
-    touchAction: isDragging ? "none" : "pan-y",
   };
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style}>
+      <button
+        {...attributes}
+        {...listeners}
+        aria-label="Mantén presionado para mover esta sección"
+        className="absolute flex items-center justify-center"
+        style={{
+          top: 10, right: 10, width: 30, height: 30, zIndex: 20,
+          touchAction: "none", cursor: isDragging ? "grabbing" : "grab",
+          color: dark ? "rgba(255,255,255,0.55)" : C.muted, background: "transparent", border: "none",
+        }}
+      >
+        <GripVertical size={18} />
+      </button>
       {children}
     </div>
   );
@@ -707,7 +723,7 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
         <SortableContext items={visibleOrder} strategy={verticalListSortingStrategy}>
           <div className="space-y-4">
             {visibleOrder.map((id) => (
-              <SortableSection key={id} id={id}>{sectionContent[id]}</SortableSection>
+              <SortableSection key={id} id={id} dark={id === "saldo"}>{sectionContent[id]}</SortableSection>
             ))}
           </div>
         </SortableContext>
