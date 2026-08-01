@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, AreaChart, Area,
 } from "recharts";
 import {
-  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+  DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors,
 } from "@dnd-kit/core";
 import {
   arrayMove, SortableContext, useSortable, verticalListSortingStrategy,
@@ -548,7 +548,7 @@ function SortableSection({ id, children }) {
     opacity: isDragging ? 0.6 : 1,
     zIndex: isDragging ? 10 : "auto",
     position: "relative",
-    touchAction: "none",
+    touchAction: isDragging ? "none" : "pan-y",
   };
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -586,8 +586,8 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
   const spendRatio = income > 0 ? Math.min(100, (expense / income) * 100) : (expense > 0 ? 100 : 0);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } })
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 3000, tolerance: 10 } })
   );
 
   const sectionContent = {
