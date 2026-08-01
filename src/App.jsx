@@ -4,6 +4,14 @@ import {
   XAxis, YAxis, CartesianGrid, AreaChart, Area,
 } from "recharts";
 import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove, SortableContext, useSortable, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
+import {
   Home, Utensils, Car, Send, Heart, ShoppingBag, Smartphone, HelpCircle,
   Briefcase, Banknote, Repeat, Landmark, Wallet, CreditCard, PiggyBank,
   Gift, GraduationCap, Zap, Plus, X, ChevronLeft, ChevronRight,
@@ -11,7 +19,7 @@ import {
   LayoutGrid, List, PieChart as PieIcon, Settings, Search, Menu, Mail, Code2,
   Coffee, Plane, Gamepad2, Dumbbell, Baby, Dog, Fuel, Wifi, Shirt,
   Stethoscope, Film, Music, BookOpen, Wrench, TreePine, Bus, Bike,
-  Scissors, PawPrint, Umbrella, Download,
+  Scissors, PawPrint, Umbrella, Download, GripVertical,
 } from "lucide-react";
 
 /* ---------------------------------- tokens ---------------------------------- */
@@ -86,6 +94,7 @@ const DEFAULT_CATEGORIES = [
   { id: "cat-i-salario", name: "Salario", type: "income", icon: "Briefcase", color: C.emerald },
   { id: "cat-i-ventas", name: "Ventas", type: "income", icon: "Banknote", color: C.blue },
   { id: "cat-i-devolucion", name: "Devolución", type: "income", icon: "Repeat", color: "#2AAFD6" },
+  { id: "cat-i-prestamo", name: "Préstamo", type: "income", icon: "Landmark", color: "#8B5CF6" },
   { id: "cat-i-otros", name: "Otros ingresos", type: "income", icon: "HelpCircle", color: "#7C5CBF" },
   { id: "cat-e-hogar", name: "Alquiler / Hogar", type: "expense", icon: "Home", color: C.rose },
   { id: "cat-e-comida", name: "Comida", type: "expense", icon: "Utensils", color: "#E08E45" },
@@ -94,21 +103,71 @@ const DEFAULT_CATEGORIES = [
   { id: "cat-e-salud", name: "Salud", type: "expense", icon: "Heart", color: "#C74B6B" },
   { id: "cat-e-compras", name: "Compras", type: "expense", icon: "ShoppingBag", color: "#7C5CBF" },
   { id: "cat-e-suscripciones", name: "Suscripciones", type: "expense", icon: "Smartphone", color: C.inkSoft },
+  { id: "cat-e-pago-prestamo", name: "Pago de préstamo", type: "expense", icon: "CreditCard", color: "#B45309" },
   { id: "cat-e-otros", name: "Otros", type: "expense", icon: "HelpCircle", color: C.muted },
 ];
+
+// Categorías nuevas que se añaden a instalaciones existentes (usuarios que ya
+// tenían categorías guardadas antes de que estas existieran).
+const NEW_DEFAULT_CATEGORIES = DEFAULT_CATEGORIES.filter(
+  (c) => c.id === "cat-i-prestamo" || c.id === "cat-e-pago-prestamo"
+);
 
 function seedTransactions() {
   const today = new Date();
   const d = (offset) => { const x = new Date(today); x.setDate(x.getDate() - offset); return x.toISOString(); };
   const first = new Date(today.getFullYear(), today.getMonth(), 3).toISOString();
   return [
-    { id: uid(), type: "income", amount: 1392.41, date: first, accountId: "acc-banco", categoryId: "cat-i-salario", toAccountId: null, note: "Nómina" },
-    { id: uid(), type: "expense", amount: 544, date: d(11), accountId: "acc-banco", categoryId: "cat-e-hogar", toAccountId: null, note: "" },
-    { id: uid(), type: "expense", amount: 66, date: d(8), accountId: "acc-banco", categoryId: "cat-e-envios", toAccountId: null, note: "Envío a Venezuela" },
-    { id: uid(), type: "expense", amount: 33.6, date: d(6), accountId: "acc-banco", categoryId: "cat-e-comida", toAccountId: null, note: "" },
-    { id: uid(), type: "expense", amount: 20, date: d(4), accountId: "acc-efectivo", categoryId: "cat-e-otros", toAccountId: null, note: "" },
-    { id: uid(), type: "expense", amount: 92.2, date: d(2), accountId: "acc-banco", categoryId: "cat-e-comida", toAccountId: null, note: "" },
+    { id: uid(), type: "income", amount: 1392.41, date: first, accountId: "acc-banco", categoryId: "cat-i-salario", toAccountId: null, note: "Nómina", order: 0 },
+    { id: uid(), type: "expense", amount: 544, date: d(11), accountId: "acc-banco", categoryId: "cat-e-hogar", toAccountId: null, note: "", order: 1 },
+    { id: uid(), type: "expense", amount: 66, date: d(8), accountId: "acc-banco", categoryId: "cat-e-envios", toAccountId: null, note: "Envío a Venezuela", order: 2 },
+    { id: uid(), type: "expense", amount: 33.6, date: d(6), accountId: "acc-banco", categoryId: "cat-e-comida", toAccountId: null, note: "", order: 3 },
+    { id: uid(), type: "expense", amount: 20, date: d(4), accountId: "acc-efectivo", categoryId: "cat-e-otros", toAccountId: null, note: "", order: 4 },
+    { id: uid(), type: "expense", amount: 92.2, date: d(2), accountId: "acc-banco", categoryId: "cat-e-comida", toAccountId: null, note: "", order: 5 },
   ];
+}
+
+/* ---------------------------------- transaction ordering / running balance ---------------------------------- */
+
+// `order` is a plain number used purely for manual sequencing: ascending
+// order = chronological "oldest to newest" for balance-calculation purposes.
+// It's independent from `date`, which is what decides which day-group a
+// transaction is shown under.
+function nextOrder(transactions) {
+  return transactions.reduce((m, t) => Math.max(m, t.order ?? 0), 0) + 1;
+}
+
+// Migration helper: assigns an `order` to any transaction that doesn't have
+// one yet (older data saved before this feature existed), based on its date.
+function ensureOrders(transactions) {
+  if (transactions.every((t) => typeof t.order === "number")) return transactions;
+  const sorted = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const orderMap = new Map(sorted.map((t, i) => [t.id, i]));
+  return transactions.map((t) => ({ ...t, order: orderMap.get(t.id) }));
+}
+
+// Balance remaining in each account right after each transaction, walked in
+// chronological (order-ascending) sequence. Returns Map<txId, balanceAfter>.
+// Transfers aren't included (they touch two accounts, so a single number
+// would be ambiguous) — only income/expense rows get a running balance.
+function computeRunningBalances(accounts, transactions) {
+  const byOrder = [...transactions].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const running = {};
+  accounts.forEach((a) => { running[a.id] = a.initialBalance || 0; });
+  const result = new Map();
+  byOrder.forEach((t) => {
+    if (t.type === "income" && t.accountId in running) {
+      running[t.accountId] += t.amount;
+      result.set(t.id, running[t.accountId]);
+    } else if (t.type === "expense" && t.accountId in running) {
+      running[t.accountId] -= t.amount;
+      result.set(t.id, running[t.accountId]);
+    } else if (t.type === "transfer" && FMT.includeTransfers) {
+      if (t.accountId in running) running[t.accountId] -= t.amount;
+      if (t.toAccountId in running) running[t.toAccountId] += t.amount;
+    }
+  });
+  return result;
 }
 
 /* ---------------------------------- date helpers ---------------------------------- */
@@ -434,34 +493,89 @@ function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editin
 
 /* ---------------------------------- transaction row ---------------------------------- */
 
-function TxRow({ tx, categories, accounts, onClick }) {
+function TxRow({ tx, categories, accounts, onClick, balanceAfter, dragProps, isDragging }) {
   const cat = categories.find((c) => c.id === tx.categoryId);
   const acc = accounts.find((a) => a.id === tx.accountId);
   const toAcc = accounts.find((a) => a.id === tx.toAccountId);
   const isTransfer = tx.type === "transfer";
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-3 py-2.5 text-left">
-      {isTransfer ? (
-        <div className="flex items-center justify-center rounded-full shrink-0" style={{ width: 38, height: 38, backgroundColor: C.blue + "1c" }}>
-          <ArrowLeftRight size={17} color={C.blue} />
+    <div className="w-full flex items-center gap-2" {...(dragProps || {})} style={{ touchAction: dragProps ? "manipulation" : undefined }}>
+      {dragProps && (
+        <span className="shrink-0" style={{ color: C.muted, opacity: isDragging ? 1 : 0.35, cursor: "grab" }}>
+          <GripVertical size={15} />
+        </span>
+      )}
+      <button onClick={onClick} className="flex-1 min-w-0 flex items-center gap-3 py-2.5 text-left">
+        {isTransfer ? (
+          <div className="flex items-center justify-center rounded-full shrink-0" style={{ width: 38, height: 38, backgroundColor: C.blue + "1c" }}>
+            <ArrowLeftRight size={17} color={C.blue} />
+          </div>
+        ) : <CatBadge cat={cat} />}
+        <div className="flex-1 min-w-0">
+          <p className="text-[14px] font-medium truncate" style={{ color: C.ink }}>
+            {isTransfer ? `${acc?.name} → ${toAcc?.name}` : (cat?.name || "Otros")}
+          </p>
+          <p className="text-[12px] truncate" style={{ color: C.muted }}>
+            {new Date(tx.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}{tx.note ? ` · ${tx.note}` : ""}{!isTransfer ? ` · ${acc?.name}` : ""}
+          </p>
         </div>
-      ) : <CatBadge cat={cat} />}
-      <div className="flex-1 min-w-0">
-        <p className="text-[14px] font-medium truncate" style={{ color: C.ink }}>
-          {isTransfer ? `${acc?.name} → ${toAcc?.name}` : (cat?.name || "Otros")}
-        </p>
-        <p className="text-[12px] truncate" style={{ color: C.muted }}>
-          {new Date(tx.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}{tx.note ? ` · ${tx.note}` : ""}{!isTransfer ? ` · ${acc?.name}` : ""}
-        </p>
-      </div>
-      <AmountText value={tx.amount} type={tx.type} />
-    </button>
+        <div className="flex flex-col items-end gap-0.5 shrink-0">
+          <AmountText value={tx.amount} type={tx.type} />
+          {typeof balanceAfter === "number" && (
+            <span className="text-[11px]" style={{ color: C.muted, fontVariantNumeric: "tabular-nums" }}>Saldo: {eur(balanceAfter)}</span>
+          )}
+        </div>
+      </button>
+    </div>
+  );
+}
+
+// Wraps TxRow with dnd-kit sortable behaviour. Dragging is triggered by
+// pressing directly on the row (grip icon is just a visual cue) — a short
+// tap still opens the edit modal thanks to the sensors' activation
+// constraints (see Movimientos below).
+function SortableTxRow({ tx, categories, accounts, onClick, balanceAfter }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tx.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+    position: "relative",
+    zIndex: isDragging ? 10 : "auto",
+    backgroundColor: isDragging ? C.surfaceAlt : "transparent",
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TxRow tx={tx} categories={categories} accounts={accounts} onClick={onClick} balanceAfter={balanceAfter}
+        dragProps={{ ...attributes, ...listeners }} isDragging={isDragging} />
+    </div>
+  );
+}
+
+// Same idea, for reordering whole dashboard cards on Inicio.
+function SortableSection({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 10 : "auto",
+    position: "relative",
+    touchAction: "manipulation",
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
   );
 }
 
 /* ---------------------------------- INICIO (dashboard) ---------------------------------- */
 
-function Inicio({ accounts, categories, transactions, period, setPeriod, accountFilter, setAccountFilter, openAdd, openEdit }) {
+// ids + display order for the draggable dashboard cards
+const DEFAULT_DASHBOARD_ORDER = ["saldo", "ratio", "categorias", "cuentas", "movimientos"];
+
+function Inicio({ accounts, categories, transactions, period, setPeriod, accountFilter, setAccountFilter, openAdd, openEdit, settings, updateSettings }) {
   const [start, end] = getRange(period.type, period.anchor, period.customStart, period.customEnd);
 
   const periodTx = transactions.filter((t) => inRange(t, start, end) && filterByAccount(t, accountFilter));
@@ -480,14 +594,17 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
   }, [periodTx, categories, accountFilter]);
 
   const recent = transactions.filter((t) => filterByAccount(t, accountFilter)).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+  const balanceMap = useMemo(() => computeRunningBalances(accounts, transactions), [accounts, transactions]);
 
   const spendRatio = income > 0 ? Math.min(100, (expense / income) * 100) : (expense > 0 ? 100 : 0);
 
-  return (
-    <div className="space-y-4 pb-4">
-      <AccountChips accounts={accounts} value={accountFilter} onChange={setAccountFilter} />
-      <PeriodBar period={period} setPeriod={setPeriod} />
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } })
+  );
 
+  const sectionContent = {
+    saldo: (
       <Card style={{ backgroundColor: C.ink }} className="text-white">
         <p className="text-[12px]" style={{ color: "#AFC0D6" }}>Saldo {accountFilter === "all" ? "total" : accounts.find((a) => a.id === accountFilter)?.name}</p>
         <p className="text-[32px] font-bold mt-0.5" style={{ fontVariantNumeric: "tabular-nums" }}>{eur(filteredBalance)}</p>
@@ -503,7 +620,8 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
           </div>
         </div>
       </Card>
-
+    ),
+    ratio: (
       <Card>
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[13px] font-medium" style={{ color: C.inkSoft }}>Gastado sobre lo ingresado</span>
@@ -513,44 +631,44 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
           <div className="h-full rounded-full" style={{ width: `${spendRatio}%`, backgroundColor: spendRatio > 90 ? C.rose : spendRatio > 65 ? "#E08E45" : C.emerald }} />
         </div>
       </Card>
-
-      {expenseByCat.length > 0 && (
-        <Card>
-          <SectionTitle>Gastos por categoría</SectionTitle>
-          <div className="flex items-center mb-3">
-            <div style={{ width: 120, height: 120 }} className="shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={expenseByCat} dataKey="total" nameKey={(d) => d.cat?.name} innerRadius={38} outerRadius={58} paddingAngle={2} stroke="none">
-                    {expenseByCat.map((e, i) => <Cell key={i} fill={e.cat?.color || C.muted} />)}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex-1 pl-3 space-y-1.5 min-w-0">
-              {expenseByCat.slice(0, 4).map((e, i) => (
-                <div key={i} className="flex items-center gap-2 text-[12.5px]">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.cat?.color || C.muted }} />
-                  <span className="truncate flex-1" style={{ color: C.inkSoft }}>{e.cat?.name || "Otros"}</span>
-                  <span className="font-semibold shrink-0" style={{ color: C.ink }}>{eur(e.total)}</span>
-                </div>
-              ))}
-            </div>
+    ),
+    categorias: expenseByCat.length > 0 ? (
+      <Card>
+        <SectionTitle>Gastos por categoría</SectionTitle>
+        <div className="flex items-center mb-3">
+          <div style={{ width: 120, height: 120 }} className="shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={expenseByCat} dataKey="total" nameKey={(d) => d.cat?.name} innerRadius={38} outerRadius={58} paddingAngle={2} stroke="none">
+                  {expenseByCat.map((e, i) => <Cell key={i} fill={e.cat?.color || C.muted} />)}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-          {expenseByCat.length > 4 && (
-            <div className="pt-2 space-y-1.5" style={{ borderTop: `1px solid ${C.border}` }}>
-              {expenseByCat.slice(4).map((e, i) => (
-                <div key={i} className="flex items-center gap-2 text-[12.5px]">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.cat?.color || C.muted }} />
-                  <span className="truncate flex-1" style={{ color: C.inkSoft }}>{e.cat?.name || "Otros"}</span>
-                  <span className="font-semibold shrink-0" style={{ color: C.ink }}>{eur(e.total)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
+          <div className="flex-1 pl-3 space-y-1.5 min-w-0">
+            {expenseByCat.slice(0, 4).map((e, i) => (
+              <div key={i} className="flex items-center gap-2 text-[12.5px]">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.cat?.color || C.muted }} />
+                <span className="truncate flex-1" style={{ color: C.inkSoft }}>{e.cat?.name || "Otros"}</span>
+                <span className="font-semibold shrink-0" style={{ color: C.ink }}>{eur(e.total)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {expenseByCat.length > 4 && (
+          <div className="pt-2 space-y-1.5" style={{ borderTop: `1px solid ${C.border}` }}>
+            {expenseByCat.slice(4).map((e, i) => (
+              <div key={i} className="flex items-center gap-2 text-[12.5px]">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.cat?.color || C.muted }} />
+                <span className="truncate flex-1" style={{ color: C.inkSoft }}>{e.cat?.name || "Otros"}</span>
+                <span className="font-semibold shrink-0" style={{ color: C.ink }}>{eur(e.total)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    ) : null,
+    cuentas: (
       <Card>
         <SectionTitle>Saldo por cuenta</SectionTitle>
         <div className="space-y-2.5">
@@ -565,41 +683,126 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
           ))}
         </div>
       </Card>
-
+    ),
+    movimientos: (
       <Card>
         <SectionTitle>Últimos movimientos</SectionTitle>
         {recent.length === 0 ? (
           <p className="text-[13px] py-6 text-center" style={{ color: C.muted }}>Aún no hay movimientos. Añade el primero con el botón +.</p>
         ) : (
           <div className="divide-y" style={{ borderColor: C.border }}>
-            {recent.map((t) => <TxRow key={t.id} tx={t} categories={categories} accounts={accounts} onClick={() => openEdit(t)} />)}
+            {recent.map((t) => <TxRow key={t.id} tx={t} categories={categories} accounts={accounts} onClick={() => openEdit(t)} balanceAfter={balanceMap.get(t.id)} />)}
           </div>
         )}
       </Card>
+    ),
+  };
+
+  const savedOrder = (settings.dashboardOrder || []).filter((id) => DEFAULT_DASHBOARD_ORDER.includes(id));
+  const fullOrder = [...savedOrder, ...DEFAULT_DASHBOARD_ORDER.filter((id) => !savedOrder.includes(id))];
+  const visibleOrder = fullOrder.filter((id) => sectionContent[id] !== null);
+
+  const handleDashDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = fullOrder.indexOf(active.id);
+    const newIndex = fullOrder.indexOf(over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    updateSettings({ dashboardOrder: arrayMove(fullOrder, oldIndex, newIndex) });
+  };
+
+  return (
+    <div className="space-y-4 pb-4">
+      <AccountChips accounts={accounts} value={accountFilter} onChange={setAccountFilter} />
+      <PeriodBar period={period} setPeriod={setPeriod} />
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDashDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
+        <SortableContext items={visibleOrder} strategy={verticalListSortingStrategy}>
+          <div className="space-y-4">
+            {visibleOrder.map((id) => (
+              <SortableSection key={id} id={id}>{sectionContent[id]}</SortableSection>
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
 
 /* ---------------------------------- MOVIMIENTOS ---------------------------------- */
 
-function Movimientos({ accounts, categories, transactions, accountFilter, setAccountFilter, openEdit }) {
+function Movimientos({ accounts, categories, transactions, accountFilter, setAccountFilter, openEdit, setTransactions }) {
   const [period, setPeriod] = useState({ type: "month", anchor: new Date() });
   const [query, setQuery] = useState("");
   const [start, end] = getRange(period.type, period.anchor, period.customStart, period.customEnd);
 
-  const list = transactions
+  const filtered = transactions
     .filter((t) => inRange(t, start, end) && filterByAccount(t, accountFilter))
-    .filter((t) => !query || (t.note || "").toLowerCase().includes(query.toLowerCase()) || (categories.find((c) => c.id === t.categoryId)?.name || "").toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
+    .filter((t) => !query || (t.note || "").toLowerCase().includes(query.toLowerCase()) || (categories.find((c) => c.id === t.categoryId)?.name || "").toLowerCase().includes(query.toLowerCase()));
 
-  const groups = {};
-  list.forEach((t) => {
-    const key = new Date(t.date).toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "long" });
-    groups[key] = groups[key] || [];
-    groups[key].push(t);
+  // Display order: newest date first, and within the same day, the most
+  // recently-ordered item first — this is also the sequence dnd-kit uses
+  // for drag & drop, so dragging always moves items relative to what's on
+  // screen (both within a day and across day groups).
+  const flatList = [...filtered].sort((a, b) => {
+    const byDate = new Date(b.date) - new Date(a.date);
+    if (byDate !== 0) return byDate;
+    return (b.order ?? 0) - (a.order ?? 0);
   });
 
-  const totalPeriod = list.filter((t) => t.type !== "transfer").reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+  const groups = [];
+  flatList.forEach((t) => {
+    const key = new Date(t.date).toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "long" });
+    let g = groups.find((g) => g.key === key);
+    if (!g) { g = { key, txs: [] }; groups.push(g); }
+    g.txs.push(t);
+  });
+
+  const totalPeriod = filtered.filter((t) => t.type !== "transfer").reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+  const balanceMap = useMemo(() => computeRunningBalances(accounts, transactions), [accounts, transactions]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } })
+  );
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = flatList.findIndex((t) => t.id === active.id);
+    const newIndex = flatList.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(flatList, oldIndex, newIndex);
+    const movedTx = reordered[newIndex];
+    const before = reordered[newIndex - 1];
+    const after = reordered[newIndex + 1];
+
+    // Fractional indexing: slot the new order value between its neighbours
+    // so every other transaction (even ones outside this filtered view)
+    // keeps its relative place — no need to renumber the whole history.
+    let newOrder;
+    if (before && after) newOrder = ((before.order ?? 0) + (after.order ?? 0)) / 2;
+    else if (before) newOrder = (before.order ?? 0) + 1;
+    else if (after) newOrder = (after.order ?? 0) - 1;
+    else newOrder = movedTx.order ?? 0;
+
+    // If it was dropped into a different day's group, move it to that day
+    // (keeping its original time of day) so the date header stays correct.
+    const refTx = before || after;
+    let newDate = movedTx.date;
+    if (refTx) {
+      const refDay = new Date(refTx.date);
+      const ownDay = new Date(movedTx.date);
+      if (refDay.toDateString() !== ownDay.toDateString()) {
+        const merged = new Date(refDay);
+        merged.setHours(ownDay.getHours(), ownDay.getMinutes(), ownDay.getSeconds(), 0);
+        newDate = merged.toISOString();
+      }
+    }
+
+    setTransactions((prev) => prev.map((t) => t.id === movedTx.id ? { ...t, order: newOrder, date: newDate } : t));
+  };
 
   return (
     <div className="space-y-3 pb-4">
@@ -612,23 +815,33 @@ function Movimientos({ accounts, categories, transactions, accountFilter, setAcc
       </div>
 
       <Card>
-        {list.length === 0 ? (
+        {flatList.length === 0 ? (
           <p className="text-[13px] py-8 text-center" style={{ color: C.muted }}>No hay movimientos en este período.</p>
-        ) : Object.entries(groups).map(([day, txs]) => (
-          <div key={day} className="mb-1">
-            <p className="text-[11.5px] font-semibold uppercase pt-2 pb-1" style={{ color: C.muted, letterSpacing: "0.03em" }}>{day}</p>
-            <div className="divide-y" style={{ borderColor: C.border }}>
-              {txs.map((t) => <TxRow key={t.id} tx={t} categories={categories} accounts={accounts} onClick={() => openEdit(t)} />)}
-            </div>
-          </div>
-        ))}
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
+            <SortableContext items={flatList.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+              {groups.map((g) => (
+                <div key={g.key} className="mb-1">
+                  <p className="text-[11.5px] font-semibold uppercase pt-2 pb-1" style={{ color: C.muted, letterSpacing: "0.03em" }}>{g.key}</p>
+                  <div className="divide-y" style={{ borderColor: C.border }}>
+                    {g.txs.map((t) => (
+                      <SortableTxRow key={t.id} tx={t} categories={categories} accounts={accounts}
+                        onClick={() => openEdit(t)} balanceAfter={balanceMap.get(t.id)} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </SortableContext>
+          </DndContext>
+        )}
       </Card>
 
-      {list.length > 0 && (
+      {flatList.length > 0 && (
         <div className="text-center text-[13px]" style={{ color: C.inkSoft }}>
           Balance del período: <span className="font-semibold" style={{ color: totalPeriod >= 0 ? C.emerald : C.rose }}>{eur(totalPeriod)}</span>
         </div>
       )}
+      <p className="text-center text-[11.5px]" style={{ color: C.muted }}>Mantén pulsado y arrastra un movimiento para reordenarlo, incluso entre días distintos.</p>
     </div>
   );
 }
@@ -1303,11 +1516,21 @@ export default function App() {
       } catch { await safeSet("accounts", DEFAULT_ACCOUNTS); }
       try {
         const c = await window.storage.get("categories");
-        setCategories(JSON.parse(c.value));
+        let loadedCats = JSON.parse(c.value);
+        // Migration: add any category introduced after this install's data
+        // was first saved (e.g. "Préstamo" / "Pago de préstamo").
+        const missing = NEW_DEFAULT_CATEGORIES.filter((nc) => !loadedCats.some((c2) => c2.id === nc.id));
+        if (missing.length) { loadedCats = [...loadedCats, ...missing]; await safeSet("categories", loadedCats); }
+        setCategories(loadedCats);
       } catch { await safeSet("categories", DEFAULT_CATEGORIES); }
       try {
         const t = await window.storage.get("transactions");
-        setTransactions(JSON.parse(t.value));
+        let loadedTx = JSON.parse(t.value);
+        // Migration: assign a manual `order` to transactions saved before
+        // drag-to-reorder existed.
+        const withOrders = ensureOrders(loadedTx);
+        if (withOrders !== loadedTx) { await safeSet("transactions", withOrders); }
+        setTransactions(withOrders);
       } catch { const seed = seedTransactions(); setTransactions(seed); await safeSet("transactions", seed); }
       try {
         const s = await window.storage.get("savings-sim");
@@ -1348,7 +1571,9 @@ export default function App() {
   const closeModal = () => setModal({ open: false, editing: null, defaultType: "expense" });
 
   const saveTx = (tx) => {
-    setTransactions((prev) => modal.editing ? prev.map((t) => t.id === tx.id ? tx : t) : [...prev, tx]);
+    setTransactions((prev) => modal.editing
+      ? prev.map((t) => t.id === tx.id ? { ...tx, order: t.order } : t)
+      : [...prev, { ...tx, order: nextOrder(prev) }]);
     closeModal();
   };
   const deleteTx = (id) => {
@@ -1397,11 +1622,13 @@ export default function App() {
             <Inicio accounts={accounts} categories={categories} transactions={transactions}
               period={dashPeriod} setPeriod={setDashPeriod}
               accountFilter={accountFilter} setAccountFilter={setAccountFilter}
-              openAdd={openAdd} openEdit={openEdit} />
+              openAdd={openAdd} openEdit={openEdit}
+              settings={settings} updateSettings={updateSettings} />
           )}
           {tab === "movimientos" && (
             <Movimientos accounts={accounts} categories={categories} transactions={transactions}
-              accountFilter={accountFilter} setAccountFilter={setAccountFilter} openEdit={openEdit} />
+              accountFilter={accountFilter} setAccountFilter={setAccountFilter} openEdit={openEdit}
+              setTransactions={setTransactions} />
           )}
           {tab === "reportes" && (
             <Reportes accounts={accounts} categories={categories} transactions={transactions}
