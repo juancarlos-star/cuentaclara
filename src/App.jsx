@@ -19,7 +19,7 @@ import {
   LayoutGrid, List, PieChart as PieIcon, Settings, Search, Menu, Mail, Code2,
   Coffee, Plane, Gamepad2, Dumbbell, Baby, Dog, Fuel, Wifi, Shirt,
   Stethoscope, Film, Music, BookOpen, Wrench, TreePine, Bus, Bike,
-  Scissors, PawPrint, Umbrella, Download, GripVertical,
+  Scissors, PawPrint, Umbrella, Download,
 } from "lucide-react";
 
 /* ---------------------------------- tokens ---------------------------------- */
@@ -78,6 +78,10 @@ const eur = (n) => {
   return FMT.symbolSide === "left" ? `${symbol}${num}` : `${num} ${symbol}`;
 };
 const isoDay = (d) => new Date(d).toISOString().slice(0, 10);
+const isoTime = (d) => {
+  const dt = new Date(d);
+  return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+};
 
 const DEV_PHOTO =
   "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAFAAUADASIAAhEBAxEB/8QAHQAAAgIDAQEBAAAAAAAAAAAABAUDBgECBwgACf/EAD4QAAIBAwMDAgQDBgQGAQUAAAECAwAEEQUSIQYxQRNRByJhcRQygQgVI0KRoTOxwdEkQ1Jy4fBiFjSCkvH/xAAaAQACAwEBAAAAAAAAAAAAAAABAgADBAUG/8QAJREAAgICAwACAgMBAQAAAAAAAAECEQMhBBIxIkETUQUyYRRi/9oADAMBAAIRAxEAPwD2L5xVX68thPpE6AZyh/yqzBgT3pR1KoexkXOflPFRAfhxD9nS4a3n1LT2OPQvJBj6Zr0FGd0Sn3Feb/hZJ+B+Jmu2fYNMHA+4r0bZtutVP0qS9CvAe8tS4JHFVjqJmtbWQs5XirVcXaRAhyP1qg/EfUIxp7bHXcfY1VllUWJJFFv9SdnbdI3B4pTPqrJlgx4pHqN9P6h25NCQ3TMMSf0rh5O8toXsqH8/U77fSdjt+lCfvSOQMxzzSyRIpBuyKCuonAJQnFI13pNkQJrt8zSko2BSGW7feMOx5qXUjIGORSncfWGa3YopLQrZcOkr0G8CyEgE4NdAuIbRrQNGQGx3rkEMzW2HjbnvxTjT9euXTaztV8YwivkidqGWrTn8QYwN2D4qew2uo3DH3pR6kkknqHnNNNPgldlbJwPFZ+RDHCF+AXpnqATxWbCN9qkeK5Fqm+K+dizEn3rsXULBbXb5xXLNfg3XBbFZuLkb+9EmkJ/WJPmm+lW4uQN2KWG3Oe1MLB3t8BTXQjJWIfa5p0cKbhjP0pHHeyWz4U4FOtWuHlADEmkF3GM5pm1J0FGb6f8AE8k0smXBopRgZoW5lBJAFWw1oJJaAltiDLE96Nv7ecQZ2cYqHpuWMX38QDFXeRLa6h2RoCSOwFZ82WUZqkRRsUfDtIWuVDj+JnnIrskcRS1GxgOKp3THR81tdLeBSFPJBq/SQhbYKQO1U5JdnZph/UQ3F3LC23eGBqv9Q6pIFIBPant/F854qqdSgCngw00itXtyzSZY4+9AyXci/lY/pW98GOSASKEtSAx9StEUmVNmHu5ZG2uzD9a39SSOPO40NeMiyhkPFRTXBIwTTdQB9ncb2O+htTkDuAKgs5O9R3Mh35oqOwMlUDA5prpM8kSEK3ApJHJmj7aTbx71JColu7iZ7k5bIpjpVyMovnzSufvmitBTfec1XOuoV6e8JOsII3I3HGaWa51pafg33SYOK5Vea3G0GRJk1TNc1uYq6+oSpFUwebsPKRZ/h9qyXfxivZkOEkUfrivU+mMGt1GfArwt0BrLaX1nDfNyGO1v617J6J1db+wjljbcGANdG/2GMgjqqKT8O7R5B8YrkXUkskjMsshOPBrtmuEG0Yn2rgvWU+6/kWMY55rFy1SBMrF68Sucjmll3IhyU70TeRyMxLUIUVIzu71lj5RWLfx7pLsOcUfHcCWPgc0omjzcZFMNO4/NVWSKQyF2qIfmJFIpYwZMg1Z9eZBCduM1WoiSxBHercd0Rs+OQuM5AojTmUSKCRzQ3oXEgJjHFCFpYZirkhh9Kvkm1Yp0CyaFkRARmniKkFszBewrnOialIl0GlPHir3bahHd24QHvxXO5spzpDRpiO+eW9uTHkgUv1Tp1BbmQFiQM1Z5NGvWDz20RfHarN0j0je6snp3ilM+PpWrh4ZVtEls4Z+7ZvxAVYmP6U9tenp5YgWjIzXoWT4eWOnW+5YF3Y5JHNIp9Mt4pWhEY+Xit08KirJR576l0S6tASN2B7Cq2bOVxllOK9B9Q6JDcoUI81XZulLYLjatc/s70RxOLyadNISqAgfam/T/AEXPeyK7hmBPtXTrbpSH1MKn9qufTugLaRJlAOPNWrLJKg9KOWz/AAy9REe3Uxt5wKedMdEyWM6GcmTHuK6yYoUGNoqJEj9XOKVyb9GUUDWunwpagY5xSPW0EOSoq1XMTmL+FjiqxrWfTkD8HHmlHTop99dx7ipIBqidUXRMhxnFPtdm9G6+xqra24c54xVsFbBOdi95MwHHcik1wZFJO6nKsm2ll4AScVqjopbAwwbCk96juIWJGKljj/irxTKVIxEM4z7VO1BTFcCbEzmvpMEZ81JJjsO1Rt28U17Fb2RpxRcLntQu3NEW/wArc4FSwoLRfUYA080uBIQHAwaQpNtk4I4pil8FixnxVORN6CqOiXd0whwp70lvHd4ySanaUsMUPOo2mtK9FfostCE1CNznaHGa9VfCXqiw/dkNuJUUgAd+a8sR/wD3AAAJJrqvRNuIrdZVba4HvT5X0SY0D05f6jaz2Rw2SR71xbqyKI3z+mR+Y1LHq100Xp/iD27Ul1O5YNvbJJ+lczNmlkfWhpKxddoEGSM0gvUmkkOwHbTi8u8pyCKBjuEOeKEVKKFqhWERT8w5qSJkXt3rXUTul+RaDcyxjcQadY+2w0bantZTmlUUK7/l4oiaQyNjNfKgHitEMaoD2EWLxRIwcc0s1GAXV4TGvGOaJkcj5cYFFWcaGncNAflCuLTZFPGRTrS4bmIrgnvRsMCEDimNjGgYArWaUIrbIo0zoXStzayWsSuBuZcHPvXS+lLa3iQPweK4po6SJcqyn5Qc10fSOoI7dVU47YNWw5eOKoZF56hMX4U4XxXLNRi2zSP5Jqyal1JDNEUD8/eq1eXEc5J96pzc2DXVBlsreqvtJ70guLxzKIwhPOO1Wu8iiYkNk+4AzSq5s7K0gF7cXSr5RFjLMD5Bx2HHes+HHLI7Q0YWMOnrIugklHJ8GnsiokeRjAqi3PV+kaRa3FxczJdbf8KOGYgg8ZLYH5Rkf1qua18ULgu0uk27SzKh3fwAYFOPcnOcVrXGZb0s6jKwyRz/AEqONhk/TvXn61+IXUByZHlhWRgWkjJYAdsYP5v/AHFWbSeuNXa4t4r7mFm5l/ClnOOwxkYNR8Z/sDxyO2WZV+9VvrCAIrHiufal8XobC8RbSykMb8yF3yIznwP5vritF+Jv72UeparIJc+mIjjJHcNnke9KuPJAUH9iDqtSbkjsc1W9RjPo8cn2FOb/AFjS72RZfUPqSDnJGAR7Ujv5CyuEZW5J2r3wAPNWwxtCuAmkkZOxqB3zyTW94k/5jbmIc4yO4oeT5TzTlMkbIcNmpJZsrihC3eo3kOalEaJGYZrQtUJl57VlWzTqIpMj81iQvnNRZ2uKmMikdqDQSNWcHNTeudvNR8HmtXximoh2i00/1GwAalv9FZYGYDxXX4OirOPOwgGvr7pCFrZl34A71l7SvRq/AebGLx6mI+fzV2HpjT9RuNOT8OgVsdzVG640UaTrgdGDRs3b2ruHw8urX9zwkgfkFa8sviiYoLxn3TXTsoRTendIfAo/XOnrdIN6gjAzTV7hPWG1go+lbXirdQ+mZeMVig97RcsaZzDULaF96AZIpFNp8kRLKOCa6VcaJGkpO7OaEudJi2+KtlPVUJLFTKRbaYWw75xX1/YxGIoO9XaPTogu3IoO60hGOarToH41Rzaaw9Mk4qBoiPBFdDfQ0ZsHFC3vT0eMriroTSK3jKGtmZnwM5oiK1lhbtwKuVh09IGzj+1F3PSd3KcoeDVqmhPwuytWEEkpXA70/g08ogY030Xpqa3I9TFGata+hEAPauTzsknqJcsVISxS+jwOKiutWMQPzGobwuM0i1j8bj5IXYZwx2kgfr4rmww5JsXoxgvUBa52bjVgs71o4BJN6kk7gGGCFd52/wDU57KPp5quaFY3Ol6amoSMlneylgyMUmLLjOAedje49qrur9O6xrlzNd31/aWccDqJHeWUysCM/LtGDgV2uN/Hxh8pbY0cd+lt1zqW7jgUNFHbWsLFpBNdrjnIwUU7mOaFs9N07qm5tbbSdcknvLhS/pwQ49JtpHKsBkc9/YVULK46Qsre40vUdQ19k3CRJZAA0HGM7RyR5+tKrDrbXv3pCtnrVvcTRn0rS6kgRWZAe7AjIOK6UVGOkXKFI6oOkOkfhjHPedX211rNxHEW2JbP6SBj33H5T3rj/UfVWkah6mn2dheR2Jl320CKrsoAPYqM4xzUGu671RMXubzVLpRK8n8UOZYmxj5RGeAMjua06P6/l0vqmy1HU9N0u+lgwI5ZUwUXxgKBUbGSoXjUrHb6sFlP/CYbjNKqePbPIqyx6sI9dFn1NM8bTKZoW3K0WWHBLKc4wfFEfFrq/S9VkCWOnaelq49VoIYUBVj3IbuQf9K5zqV8lzKXlJChdnOHIAGAMHsPA9qFEbL/AG3Q9jru+LRJ1vJ/V9JGL+pDGduVG4fMCSD2yBVLubVLR2tL63Npcxkg/N/iYbDAEcEd+/PFO+h9WGm22pPa3F1bxbVmhWP+aZORlh2xyceaU9TahNOtvPdy7pDCWEa/ygsRub3Y1GKxZqkBty0UVzEY2Ridq/Kvzdsnv4waDgv2jZDJJI8u/hiwAAA4x/rmtJVgjsi9tNKXSb5wxHIwMY8k5qFLxhqI1J2Uumcloww3HzjH9qiVlbZ0GxtLzWLO1SRBJbSkRiWEswlwfzLkeCTmsda9Hy6TCbi2SSe2DYM4UFfPbB/zpn8Pb0i1jEs890npL+G22hY7mbLDaO2D544NWmx1vT5bufSw9vbXLqIyLlRiXcMhxgYz4x4NBwB0jI4c8RAyQaFlBrtXUHSdrdwy29qsaTqcAqo7AAZY+BnntzS/TfhTcXaoJWZTj5sCqpTUPSqWF2ceILGiIIzsrvFl8E4iB6jSU4g+B9jtBPqH9aqfJiRYJHmiYkPWCx+teo7f4H6QGzJBu+9MIfg1oUeP+CjP3Wp/0x/QVgZ5RUSlchGP6VqUnPaNj+lewbf4WaJGoAsYuP8A4Ci4fhpo6drGL/8AQUv/AGL9B/Aw8zaqG7GvpbjUzEyFe4xVg2Z/5datCG/lxXPXKkXpHLte6RutXvPWuHIx2FP+nNAutPgEMbkgVc0tl3DIoyGKNOwqPkzf2RRSKvLZ6iG+Univo01NDyatzojLxQskXPAoLPIahCbfUZF5rVtKv3XPNPlZgcAUZA7HginjyJMhUW0nUFyFJz9qgm0zUwM7STXQoQrDBFTGOIjkDFWrK2SjlwsNUDY9I1pJpeqNz6ZzXUBBDu7Ctmggx+UUzm6J1OZ20GpW+N0JYDwKM/eF5GMfhn4q6XMMAB+QUsuEhB4QVX+doFFe/eF8eVt2zQGqSX1wP8AirnBDE2B6dEizg28xACo52O9o5TJDJATJPHgDvn2pZe9V6XdXEOl3bslsXzDFBC0jzsPJVfmbGMgduOavPXOoaLZWbp+Kga4PPphl3EeRz2P1rkC9WdG6J1BJcfuKf1GBHrXEoIXAwAdvOB9O+fNbuPClbK+od1D1VpGjw237uv8AqGK8ZmCLLDEqRM382zkKT4yTVL13r7qbVZ/3TFqmoyx28gRIiE9eXPvt+9XLSNU6X1i0ihu79re4S6ad1H+DPFj5E7ZDE/2rXXm6K6e6jvLrSrk2lxLJ87QYyd6/MobBPB4AFa7GQd0D0n1W1pDIbFdNkliP4i5u7YH7KzbiQMDviufdYw3csTWOqRSNqSSsURYgYXTOMqQARgDP6Vd+oOt+nJOkpdJh0t7m8RQtvPNNsKjwxGRnA4HmuVpczlopEuJRJG4YNJL8oI74H/uaFhscaLrstjEJZtLa6KMEWKSQ+lGcYwwbjGRmq5a6zbJ1DBqs2hafchQ/rWzDCy7sjt4PsR2xRV9q/wCKmkS4ixE6svpDgbj7n2yP0oM2giskEETPJcQfxiOBGd3H37CgBtimd0lgMYUAxvujL8vg8Yz3IFLg7vAVXHqBs5/3qwaRFFb6ms97b+pEqtlcZydhC/3waXDS5tqkqTxhj7nFTwXZ9bXs0dmLKJmbJ5UeeDnj9amllt7sxW99FIk0QEbXAfcGTvgjw2fapYdMuVZHClScn6+1TnQJmBLAqngfpQ7IHWTEF1bNBK6suFkG5cclVPbmjUjtbWIXPqAM7YVHUk4H8zDyrEn6jFEyaPcIMSq2wYHvxQOpTejKwjRAAAqHBPbyCe1MmJKLXpcul+rG05LWxNzd2xCmYPFhdsncHnPH8uO3NNLDqGLULOaacwQ3RdiiLGisqggkKcZyR3H9K5JK+4kuSSfO6j4L+dIFEmHK8AtzkYxirGKpHS7vqsadfRK5eWMhSpZ8scnKn/4jxg13r4Sa3Dr/AE6lxIq+pExQgdz5BNeMRK3/ADCGyc5YZJP3ru37MeuY1x9MldiLlflG7sR9Kx8uFwsaMrZ6ThCbueaMQLgcVFBAeDg0SIzjgVykXWakgDivgy+ay0TnzUTRnP1pyWSFkwOBWUaP2rTZlQKkgt8tQJYMvogGo2Mfihh83mpE4PNYewpszL4qP1Qp71mcjHahHOT3qWQYRyqe5rMrrt4pUzsvINatdkcGm7B7DSML3PeiYygxSOO8JbGaNjucqKKlRLG6OvvWz3Margmlon4qN8v2NWRyMlh5mBbIatvVJOM0s3bB3rZZvvTd2SwuQluM1GLbeajW5GcYqUXiqM0knYbCIrQqucZqh/F7W7jS7Wyto7x7KO6dkkmRdzHA/KBV1/eShT82Pc1wv4wXt7qfVD2su8RRqJAE/MgHlQPJrbgSk0Czl+v6pcSTSJe3MkxLOkithiVxlSCD55JqsLp1xcWcdw9vcraq/wAssQDhRnDA+c4xTvWNNlW4lZIGfadu7Hv7nwatHSHS0gXftRXUYdXwyHjOcHyM1v7pF8MTkVrS9IuYbWcWupw+rCyyRSoPleLtyO+4Z7VXNSa7XUWM7EsH/MpI89x966jrPTl9j1mkdogWwG7/AC+x9qquo6D8zybCjHHYHvTRnYZ4GitWJ3uPUUMDwfBx71ZtK0tnT5Yl2PzhhnNZ0XQm9UMzbsH/AKc81fbGzSONRsXgfrTkhi/ZTX6allBY4Cg4xjsPFYh0N4SoJzGD2J/Kc10D0124wMVFJCp/lH9KDZcsKKmNGjZeVHbk4qddKiZdjAfKcg4qweh4xWGtxntVbbH/ABITRadbouMBv0rZrKL/AKQKayQIFUqPHP3qJ04pHJk/GJb20iMRTYBmuadVWLQ3RyD37V1yWMHPFVjqjS0uF9XaA3v4/WmhKnszZcXZaOWtEcjjBrZVI57U4vLIxORt7f2oF4SByK097MDi0wFhg0+6I1mbROorK/ikkRoZFbchwe/b+lJZEIrW3JE6uCRg1JK40KtM/QrRL9bvT7e6j/JPErjnsCM00jIwK5f8FtVa++HGjySNuZIzExz/ANJxXQIr2PaMtzXBl8ZNGhDB3AFaEg81FHdRE81pcXUOSB3qdgsJVk963FwqdsUoa7UHionvuKR5AEkI5rDqS3etw8ajvUbTpu4rLRD5xhSSaBmJHajpDuGakhtlYZYUUrIJZXkxUDbicGrI9lER4oeTTxnIFHoShLFGwbcDRsCyE0WtuqnBAFERRIO3NFQDQA28P5qeIOQMGjPSU/y1jaU5Ap6olEbxNxuFRSFI0PvW00j45NQvH6ink1CJWDeqSTt71G8kgPOcUTBEinkivrmJSODSNh6gwfdweaqPxB6cOoxpqkEhS4tzl9vBKirnBb575owWo9JxsDBlO4HsauwSakTro4da2sGqRIrRKNkjSOEXbt2jGD71Z+n7FbK0ku5wpiKlMHu5Yd/0OKn1DRk0mAOIdr3LNJkD+XOBUVzJc22n/h7hPlk+aNz/AH/yrq+nQw+A96yNEwZud/5fuKr95awzzurqFQjuB5pmzeaFlAL7vrzVkUWvYrS0WNsYAIPgUXGOMVvPy241oDgVYRxRKBxWdvbNaxmpGoNoZIxsH0rDICKzmvgaQiRA6AChJRjNHvzQsycUr8A0AS0t1IAwkcc0yuBt4NK9RdQKrK3Ep+rWoySFU45pFPAQTt+Y4xg1bbwCQnHOORkcYpHdwAZ2jHkf61ohI5+WOyv3UO7LAYyeaFERBBwafSxIEPy5wcmlzwYbAzjPirlIzTjR6b/ZquI5vh+1uGG+C5YMD9cGulyp5U4rkv7IkAn0/W43ydkkZUH2INd0uLID+X+1cbLD5tl0VoRozA9z/WtJGJPc0zazPtioo7Hc3JrO0GhY2c9zXwJ+9M57AheBUUNgc88g0nUAMt0rHBYVPA0RkB3Cqbd3ssakrnNB2ut3glwQwH1NJGLFTOlM8ajIYVC94V4BzVbstSMqjfJzRbXkQQEtTNMNjX8ewPNTrqQIx5quNewlvzZ/WpIp0JBU0lsljuS8VuWoeTVEj/KeaXyTrtpfOQzZpk2yWPItaJqZdWB4JqsEkH5ayZJFGaOwdiyPehh3FRPdkL+aqw93MGwM0XbyXEgxtJo0EZw3YaXbupj6gKgA5qsvFdiT5ENNbOOfCmTINSgobQtg0bG4I5NCWseV7VOEYN5xT4/7DIdaxpNjcaOoubdJCkJCkjBH61Ub3p9Z9KFmuAR2Zudpx3q+XPz2yLnjaP8AKhVtg3f8v2rp3s2431RwzWtMuNOuWgmQkDs47NStwfau/wB3oun3iCO5t1kU9wRxVS6j6JsZYnaxU2rKCQO4bHiroyLVNHJ3BNaFeKP1CzltLhopUZWU4IIoXb4p7GNEHNbsa1CkNkVvjjtSMejTcKyGXwQawwGORUTBB2NKGyQtUb1gtxWGJxSlbF2oA9xVe1BieWH6VZrmMvx3pfPp+85x2pWK2VaRTt4U5GcfT9KAulGOG+oOO2atd3YBUwAARSG9iZSUbnz25/pTxlRlyQFvoKxZcZ7c4+nalkkJDnavy+9OWyAcof0pVeyFHLNkA/TjP3q2ErM0onbv2SLhotX1q3J4aBGCn6N/5r0TJKoX5ua8mfA7WG6e1uXUpbNnili9Pltp75zivR+ma1Dq9il1blgr9we6n2Nc/kJqVjdJxW0NLi4jB4NQwTAt370HLG55zX0BMZ5rNdgbGFxOVXGKhjlya0Mit3rDBW/LSC2c6uleTgL2pfNDKMgLirO3oAEgg5oWWOJjnigtCUVdvxsZJQnH3rU3l6PzMR+tWC5gjC5wKQ3zIj4ABq6LT9Fpo1GoTodztxRVv1CI+CaSXDNIu1RUVvpdxO2ckUXGJLZal6gVz3NHW2oLMvBpBZaFKcbmJp/p+jvEvk5qttIKs3E/8Sj4ysigGtYdM3OAQaZ/uwooIqqUrGSIba0hLAkZppb20KDIxQtvaShshiBTK1s5G7kmok2hj4RxDGMViUAEYFTzQiHuKhUhu/ejVBJ7aQD5TxRKSRn6ml5XP5c5qPbKDnmmhphRd4QJLeInwlRTTCPIWptHAm0+B2OMLg1Dd27SyfKSgFdNGqDsw9xiM7pFQ/ek2sX1qsTBpOcdzzQuvyT2kG4MX+YiqDq+syTzHltuOaazRCH2G9S2dtcQG49b+IM4DDBxVLaPAJ7YNMLvUZJI9hJxS5pCR3pu5coURNxUTzbeGNbSt3ORx7mlV/fW0RIkkAOPejdgboOadMEZNCTTxr2biktxq45ijO9+w8UKbkyDDvjP/TT2hGyxx3UbdmogMrdmqsRsqYwxGPFF298d2ATikk0DY8ZAR2rX06ggud2M5orcCMiqiegNzFnPFVvVYB6wLLt9qt7AGq51EnGaJXNCF7csQQRt8Dwa10rR3vNSM0sQECnCg+frimWmQmYgeKsen2yQx89hyKjn1QcOJN7PraCOyiAiUB8YBxVz+E+rPFqc1jM+5ZBuGT/MP/FVG4YFM+Qc/pTDoIO3UqlRwqkn+lZcrb9N2XHF4Wdvku4BH3FAm5DyYU8UqyxGCTipLc7WBJPFZOx56xvvxUqSgUsafnvW6T/SomQ5jDrbkgFsYottaUR9+aqJkAPBrYNvGM4rR+NFfYskmrvJHgc0vaR5paCWZYE+bk1Lb3IPOKjikRsd2Fsr43AU5jiSJAQBSTSJmlnCdhVnMSeiD580jjaGSCLBd+OBTeIAJjHalmnzRKvii3u4wPzCqJLY4dbKC2cURJOFXBPApOuoonIYYr5L1bpiqnNN1VEsc206sMYolbtoj7Ckdq7wy8scGmigyIDigtEszd3TTPjNYhKg5IqT04wuWxmosoTgEUG7CEwkZLY4qUSJ5AoKWdUTAPaoIpg7Y3cE0y0Sy6aPdRppzl2Cqh55pJrnV9lYlmkljC/yktiluuXz2/Tt2IWX1FAf9Aa4l1HqLSkveXJC5JC4ycfaulB/FG3Ak1Z1LVOsNOu7Mq15bMfzELIM1QL3VbV3cwPwzcAHPFcy1TqrTbVtscDybwexHj60jHWki3KRrYegG7FiTxVijJ+Iv/LGLo661wGGQwIqJroqDgZpB0vqg1G3YkDehwQO30NMppNvap0dF0ZX4CajJNKTtkKgjtmq9eWiAiWWc9+zHNMtUnYqxBpHdNPIAI13SEfmPZKRJ2F1Vm0kumQM0sjSyMqk/KM4/Sol6r0mP5Y4LlyflJEPA9q002wnhV1Egb1ch9wzmpLPpCLIeX1CG5ID4B/SrVFfZmksjeggdWaTKg4lXacNuTimun3lpcqHjII4596FHS9rEv8AhIF7Yoiy0ZLblFIpXFfRZFP7HUIjx8pFEBkHAagraHZjIozH0qdaC0b5OKW6rbeuhwPtTAVggZ5GaTxiuIl0m19GRiRyew9hR1zdpA6xMM7hkc8VK4USbhwfI96FuIBIjNKAMdjUatjYnTDA6TQjaBkjFXX4U6Q7WdxqTqcu3ppx4HeuaaNdt6/p53AGvSvQGmx2nSGnROFDmEO3Hkkmqc0GlRObk64uq+xS1pIP5a+W0cjNWi6gjBwoFL3UK+0Vk6HGE/4KTfRcdiQBTIKMZxzWyiioWQ81IkhYDB5plDZlY97E5pjb6crMARimf7rDQ4BplkRXGBULlfm5NapdRwjBOTT+76elkPy5qG16VlabLoTR/JFgcWAW+qGNwybv0pzY6zdSkKd5GPNHRdMLH/JRtvpCxH8tD8iIlJekMVzJjcSQajnv5VBwTRktoEHANAzW5J4XNK4pjWbW97JL8pbmmWnXKwSA7+9JlhZDnYax6dyWyFIFL1IpWXE3wkAxyaaabfNIgU4yKottePG4V88U0i1hIQDjBpWNZbbp3I44/WoYc8kmkcGvJKpzzQ9zrxQMEP6VKJY9u2bB+eo7ViBu30itr64u+wOKYWDSbtjg0G6BJh1kJdQ1qOzdv4VwjRNn3IOK431x05fPrktnOZIVh4ZRxu/8V3LpyNF6gspDyRKKK+LHTQ1bTH1G0t/+JtxlmXjcvt9TW/ivtE18edI8uXnSsEkYimR9iHIAbHNAXGgWcUZC24z2ySSavd4rq7K2TtOOaVXMYYkEd62Js1qMf0Wr9nHpCz1rUNSlvVdbS2VQQhwWY9h/TJrb4kaZBo2vzWlqXMI5Xf3FXf4DW7WXSeqTxgK090Ap+yVTviY5l1fe20MOG2+TQcr0W441soVwN5IqD0CVx2H0o+SIZytZWM480EtljVojs02DkE01tnXg7QeMc0CsZA44qSNnXknNPSYqQezZOe32r4LnnJ/rUCSZ8URG2TQqiVZui+cVuRW6qMea2K8UGOQnivgK2YYNZ8VXIqkCXHDjxihNZZWsXUuQ7LtTHvRk3MlDXccbPCzKCUzjP1oR9Fj/AGJOmdJjhEbNklnC/fNeibS5EVvHErYCIFA+wrhWiAyX9qmc/wAQHA8V1ywkaYgYNZ883Zk5c7dDqS6z5zUCzZk5rItjtGTWotyrZPb3rNbMqQWGGAT2NbLImaDnmCR7RzigxeYoKbQSiWCQsPGaaRW+QMdqSaXAwA+Y1arFUEYDNStaFRqlqOOKLtrVFfO2pFeAY+aiYvTIyGpFEKIJIVLYwK1/dyyKeKKYxg7iw4rR79CQkfP2p6IyGLRA/JGa2m0BFX8oo+1vBHgOMZ96ln1GMrgkUyFpFWutL9M/l4zUL2qbcbeatca28yl3NA3MMRkwuKev9FoqM2mb5CwXFAXWnyM4XBwKva2cbcmopLSAZGBmkaRCnW2msoADEVJJpLNICMmrZFawjGQKKW3jxnaOPpQ0QTaVZ+hFgjn7UV6L+qNo70Y6AHg0RAYlGXxQoCJdLtMXdtKWwVlU/wB6s2qajzLCF4UEAeGNVOW5lDgxHscirFpcQnM87jcGcbSfHyg1s4r9Rq47V7OHdc6VJZ6pJIq4hlO5MDgfSqs8J3cjzXaviasL2BjcAEfMAFGR7fauRTgYOa3pnTirR1z4URPF8PXfbnfcyY/tXLeu5VOuXI3bv4pxxwBXYOiIxpvw6sUcgGWNpiG87jkf6Vxfq2OSTUpriRcGVyQB4FKlexoeUJgQ3GRUigdsihJN4OFBqGX1FO7LcUaD6NUQmt/Sz4oPT7stw1N7ciUcVOw1AgiIqVFNGiAEYrHoYPao9kSPoSTUp+9aFdo4Nak0rAzVsZ71oTjtXxJrQ/eq2VSI5CTJ3qGdcxg+c1Ke+a1cZGD2qIreh78PYDc9QQoRnCs1dZgt2hkGBXGOmtft+m9Vj1K6XdAo2yZ8BiBmu32V3b3sST27B43UMhHkGs2aLezDndzD4RlBmtpEyMCsxAbRmvnbbznIqqrEoW3cZIwBQkNk0j8jim+wOfpRMUaIowBR6IlHGk1SKKMdsitG6hYHajVUL43SsVQE1Lo1vcyyFpVPejKNlNsuljqk8sg54q06ZcF4+WqpWFoQg4waeWCumAM1Q1THiHal6uDtfiotPLK+WzmiwjuuCK2t7Yequ7gZoL2wtEzpJKN2SKFcyI3IJqxRC3WIZxnHvQM0ccknykd6edAYoN1MAVTK1hJpN2WNMpbaNTnAoZ4l3cLVLkLRob0ovJqH13kbdu4reW3D8Yre2sjuHeok2RI3h3E8saKQlR3NEw6fhcjPahrlzA21hRRGgaSdgxqD1XeQDPFTCSJ2I4JNTxW6seBTASPo50jXBI/WrLok/qaRI69+BVel0xnwxJAprpEYttKuow3IAcA1owfGdF2F1I511zqMt1fNBv8AkQ848mqe4D3EaNjaWAP2zTbWmL6jcM3HznH1pHck+pwf1ravTuRao7B1zrkekWkOn2YUfwlEWzwu3jFcovVa4fe7DHnHFDTazchQLljcBfLnLAfepHmSWLdHKoXyM800m4iwaaoDlgj3dwAPJqC6jgeEmF0cAclWBqG4LO7BiSnsagW3jTPpgRg9wvGaVNsbSJNNiAc5HHimkXyMpWgbZlTGBijonVhVnXQndDKE7hnNbtQdu+OKKzkUB7sjbtUTVKxqNlFRgZC3BqMmpHFDyHFIUs0Z8GtA+Q27xWHGT3FQMwCNznJqJFUhH1mWl6e1CFSdxgYrjwRyP8q6r+zz1M1/0haQ3bgybAUJP07VyrVWEsMyk8NGw/tTH4Nyy2XSNkyMVZACDj61bDGp42jBydNM9NG6yRip4W3YLVV+ndViv7USFgJFHzj6+9M5r4AYTxXOcXF0xFKx4GiUcsKGlu1BIBpQkzvyxIrZZkDYJz96R3LwNnPE0uPcSVo2GyiiTgCoDqCiUjHB7UTDKZmXGRn6VTHM06YrezIk9I/l4+1MNNuVMmGU/wBKMtLCKSMFx3rcW0cTjaBSznsA0gMRj/SoZxlvkoR5vTP5v0rPrfIWz4odrQbNpndfk3moY5/TfO85oOed3bj3oWUTb/IpNsUsqSCVOTWpK0v04u2BnjFEXOIiOc5pnoJIzAH5aJtWLMM8CljzKpBOamhuRjjIpW2iLRZ7cCRPlbxQt5ZrI2DigtNu2iHztWs+p4lwDn61b9aD6TLp0SNuwKJhSNOeMUNFMZFySQDUUs4TjNI5EGjSqykA1BCwLyRBj/EQrj380uiu++aj/FiOZXBOQc1bDI1JMZPdnO+pVaPVLhcY+cnHsKr85wSTVv66tTFrUsgXEcuJEx7EVUbnliMcV1os6an8RfLhmqKFWDEMeMZFGL6avl+32rTUJ4Z7pp4YtkbY2qPFWtpi402yN8EYrG3IxisI0ZOCefbFbPIqqeM474pbSL3FkYjYcc4NTRbkb3Hnmg5rwRDeVYqvJOKBuOo7C0Cm6lMZc4AxnP8ASjbKq/0s0UoOMAijEY7aTWN2s6q8ZBRhkHFNouEz70jZbBmWbFa5zWrn5sV8pzUbGmYloKVzjgUXPwKClpCtg/zEnPFQXLkLjd+vvRDYUHFLtRlxu98Uy8KJMUanJtsp38lTj71aOmLX8D09a2+CGVAD9+Kq8ULXuqW9kACgb1ZPsOw/U1eYx+VFxhRmroaRh5Dt0PdB1E2lxGC2BI201fLORTyx/rXJDOTfKqHhPauoaNqOmatEkMjppt8FAG5v4MxA9/5T/as/I48p/KJnUkhnc3AC4U0LGJHfdk4oS5Wa3nMc42sPrkEe4PkURBdrt2jFc2VxlsbtYfddM2wI2xDNfQaIkZ4XtVodQVDZHagZ7tEJHkVJpfRc0ItQSS1j+XPFL4ZndssDmrK6LeDkcVDDp8STflFVqGxFHYleymlIPIFEralYgCeT3p5PAsceRxSC+ujHJjdxRaoktGRbLGxLYrSdEdCFHzYqJL5GOGNbmcE4jHJqCmdOWQIeAMGt54nL73OBWg9VRnHHsKEu7qVwY0U1KIEkJIQq80QkO1aXadbTj53Jot7jadlJMhIFdnC7sCpzFGoGeTQ8RJbNMrDStQ1OUR2lu7+5A4H3NNCMpKkHxGiyAJgUNKju4wCTV/0boHaA+p3HPmOL/erVp+h6XYAfhrONWH8zDJ/qa1w/j5y3LQjmjleldN6vqBHoWrqp/nf5RVp0z4eRcPqN0XPcpGMD+tXsEL3GBWGljHeRR92FbcfBxw29iObZxv44dMW9lpdrd2EJSNB6bc55HbmuH3Cnc2eP9K9b9YW9jreg3WmM4kaVDs2AsVYdjx25ryx1DZSWV1LDLG0bqxUqRzkd6fJHq9HQ4uS40yq6tJOsDJCBvxwTVJn1HqPT9QWUxJeW2Tui/Lj7Gr7NH6gOaHOnrKwVR854H3p8bj9mnb8K/pnWdotuy3mhXRn55R8r34o2168YIFg0Bd23ALMB83+1G6p06bOUQyJG7EZLJyKEOlKCNidu2F5p3GA6hfokvdU6lv8AT3sJ7i3gt3znamWwT2z/AGqDRen9s6SzFpT4LePsPFWiHTVBy4ANGRWyrwB/allNLwnSmb2SGMLjhRxinUJDKBS2JABRUDYFUsthGiSQ4c1sh+XOaHkf5q23ELgc0npJs+mYUJIcdq2d++TQlxKFPJ7d+aaiuTMXDsqkk4+9INUuo40eSRsL5o7UbvaNoHJ+tJtJtZNZ1j1XGbG1YfaV/b7CnjGzLkn1HvSli8Ns99cArLOd5z/Iv8op6ZPThaR+G71GuCdg4Uct7ULqs2ItgPerEtmGTvbJNLJZ2lY+eac21wUlC5BHilOmrtgUkcmpYJv4zuDwO2RWrGtmab0W2y1GTYIy5KeAT2plbysW3CqrazhFDEZpjbamIyCD+lUcvgrNtelcZtHV47qaRMAGs28Kyy/PxW1vLAq4OAaFnvY45htYd64ba0dIsEUEUUPAFLLtwrEjAxUMuoboMq1Vq91ST1yhzipNteEHdzqG5NtJ54/Uk3N2rFvOkikHvUF5O0ZwDnPas7m5MSRt+C3SDHAo2G1CMCfFCWM8hUMykAeTRZnLjHYVY1oQnuriP0CqgbqTQM3rln7E0z9DI3HzQlwm1sYqvsw0MPWT0MADtQlrZXd/erDawvK7eBTHpXRbvW71YIBtQcySEcKP967BoOjWGkWwhtYVzj55CPmY1tw8d5tvSBKVFU6a6IjiVJtSPqvj/CU/KPufNXW3tVhhWKEiGMdljUAVOHDPhecd63BrqY8cIKoordsga1ib/EaR/u5qJtPsjyYef+4/71tdXARtoIzWFkwm4jk+KLnYerqzUafZLjMGfuxP+tbDT7HOfwkOf+wVPHnAJ71FdzemuEGXPYCjdK2BK2RXU6WqBIVXceAqjFcC+ONrpydQ7YZ0N9cJ608KnlD23frXQvif1nb9GaaZGZZ9VuVP4aE/y/8AyP0FeWNT1u/vtbk1W4maS5dy7MT+YnuPt9KonK9G3j43/YYMhRjmvhgHI71NI0dzCtxCcqw4x4Pt96hKMvPiojZBmXJbliT4rAViOO/isNkcEYrVWFN1L0jJjOfnr7AU1kTEcDGPatXIIzQcaJZiQgdq2jb5TQ5+ZsZqUHYDSSWg3SPi258ea3kkCjjmhZHCHOeTQss4Ve+f17UEitskuZh4bJ9qXXdyVPt9M5zWlxccMRgkeaVN+K1G4e0sSAeBLMR8kQ/1b6U6RROdGhE+qXrWFsxUj/Hl8Rr7Z9zVusbeGytY7W2QIq/Ko9vcmotM0+10uzW3gVjzkk8vI3kmp2baducsRyas/wAMcm5MlVgPkXsO9AHNxeEeAaInYRw/VuBWlqgT5jwasgtlM2FzSelEFXueMf51pCTuCj7mg3uFlugJDtUD5T7/APvepoGctkDPsPP61rxozyHEWWUKDRSQL3eUKKWxSgDG7n2rWW6IB+arrKmjsUhmD8E1EYXkbPOc0c/8Q4XvUkVtIjB34U14ppnSNbWI+nhqU6tBGG8ZpxcLKG/hjK4pDqhlMnNPJMVuj7R43muxGgyWP9quFv0ebgepIGwKquhlrW5Sfk471e//AKugtdPPzDNaOPHHT7Cu2VzXLCHS5NnbGBilwngUZyDUesaqdUvHmZvk8AmlUpABYN+lZs2ZRehaHD6kgG0VLpcM2r6jDaWybpJGwOO31NVosWPeuxfCfQvwFqt7Mn/EzruyRyieB9zTcWLzS/wnYt+gaTBpGmx2VuADjMj+WPk1PqV4lrEEXG9uAKmuZktoGmkOPvVZ0yaTVtXaV/8ABiPFdxVFUiRV7ZY7UGK3BbueTUksoigZ2OOM1ofnkCDsBzS7XbnavpKeKF0RLszWGQzSGVwcZ4HvRtrulk3EcDtSm0kLEInLHvg9qfWsfpRe5oLbHm6RvM+xcDv4qJVWIGaVuf8AKtwuWLv2HagbsyXcoijyEHc07ZWkebf2krDUoesjqFyxksblR+FkHZQByv3zzXJWOWPtXqH4p29sdM1fQ9UUzWixC4tyeWjJ7Ffsc15duQ0LMjghlOCDVEls6OCdwob/AA/u4rzrC16duGIhu8u7AZ9PHAauya90LpKWKrA8sboOG4YsPc15Sg1qDTviHDqNzJdC3snUstufmYjnHccEn616U0jrdJdGgDemZZEVyu7cQGGVH17irJQpJjQyfIputaZPps/ozcnnaR2IpYQR4q267dR6pbKyzwrJ3xIQhUj3+/iq0yguB/X6VFM1toEKtnOa2B47VOygOUxkjnNQSsAc5wKjkhCM5DZ21pNMF7/pWtzNsAJcEeSe9Lrq4XaSGzjvk0r2LKdG91cY985xQc8gCklhtAyee1fLHJK42fLu7Hv/AP2mVlpqKwllxuXtv7D7DtQ8KZTE9vp15qJzJvt7Y92xh3H0HgfU1YbW1gsoEt7eIAryEX/X/eiFIYfwRgD+dv8ASpEULkAc+Se5pkzPJ36DyfwUMjcv/l9qiiXPJ5J5rE7+pPsH5U7/AHrMjiKIt57D706RWyKVhJOccqnA+9R3UoUbF5J8f6VqJBFHyRuPvUEXzyhjnOc4PitOOJmmwgqFRAefJz5z3reCCQMTHMQvhWGf796yRkip1OyPmtKWimzR7gY2PlGUZ+/296DedpWYE4Cdz4/Stb1t5wCQRyCO4NDhg7rDOdiLgqFGA7ff/SiBnpqGEJICRWbi7VpREO1D6hdgtsjNAyMIsSE814/ub6LCWgjhG4g8VXb8xzXGEGBmh7q9knAVMgVvaqsce52ye9CUrQj9JvSaKPtwPNBKHubnYEyPIqaa6d22rnGcVNbenBJ6jEbvNSK1ZGBajpzQxgxjB/zpetnO3LggVYLy/icY3CoS4lA2cClcU/QUSdDaANS12NZVLW8X8SX6geP1Nd106Jba1LOArN8zfT6foKp/w100QaWLlgN9w+Tn/pXt/enfUGoiGJ1QnIFdbi41jgBRsU9Yas88i2duxJY44pz03Ziz05QRyR7eaqmjQNd6iZ5eee9X+0jAjXwAOBWj0sl8Y0jbPowNI/fGap2qXbTXu1DubPAB7U/6ivBDbsCQBjNV7RIHubr128nAAFCX6DjVbZYdAtNiB2GT7+9OvFRWqbIwvsKzM+0YHerIrqimT7MjuGLkRoePJreGNYUJ8+a+hjxye9Da7dC10+STIztwPvU/9MnrpFE6+W11mW6j3pG0Kekzt2IPOPvkYryZ1QVtpriRjhU3BiT7E160srZNO6b1TWdVUOzI0yhxwCuSv65NeMfiddyG0uIkODJL8/0BPP8Aeq18mjZi+NnPizz3Etw/LSOWq29N61NYQi3xgvKjCcud0QUEcfTn+1Va3TIVR5prEnKgc+K3xhapiR/Z2Cz1Ca/0aK+dWaBiVR404O3AI/v/AHrKTKZGdFRt2SQPFdA/Z5skm+F0sot43ljvZRtbH8QEDg1yv4oq3TvVk0VpCgsLhPWjQHBQtw6/TBGKolxrejQsrQdJMu0jkucYoC5uGDEIuSASOeDzVZbqKX0lCwo2O+8k+P8AepU1N723WSbZEFcrhT3OKplglH0Z5tDP8RK0hCpuwRySAMVutp6xWRyML4btSxb+OMhVRGCjg+1SDVY8guTIR2HgUvVlLyWPLcICBDGGwfzntiiFjXdukb1GB89hSBdbJb/CPNFRapvGAhqKDE7pjsNn2qO8m9GLv8zcAVDa5MfqyE4x2qBmM85dvyr2FGgN2S267Vy3JPJNC382ZFRR2Pat7m5Cgqp5x38D70LGhfLv/Q+//vir8cGyicqNR8x3Nz/rU9spLZ81pjJoqBMLzWuKozN2bAY71pPJhazIwUUFM+TimFNGYlzTPSbQSH1ZFBUHgHyfegrK3aaUKOx7n2qxxKI0VV7LwKYB0sXKtKTnzUksqSJt3VXmmZASSRX1tcys3Hb3rxiizf2sdBdoO3moDcN6u1hgVNpziRfnIrTUYkXDZqSg6BQdZPCpySOah1KdWfajA/akwuMMNpOc9qJs7a4uLoOQQoqQi6JVkzW5I3GjtNO6VIVwWY4Fa3oMUYBpr8PrIXnUMDMMpEfUb7CnxxcpUSqOo6ZizsRGowIY1iH/AHdzVe1m4eSTaCNzHinWosYoAhODks5+ppNawG4ufVf8oPkYrspUh0ht0taFVB5JPerVIRFDnwBS/RYQFyBgAcVr1DeLBan5ttFCS+UqK5r05ubzZ3AOMVYenrXZCrlR9KrmgWj6jemd8hAc/erzGojjCqBgVIxt2HJKl1Rs7BVzUMQLvuNYmfcwUHPvU0YCpRbtlfiNmZQpJ4pRfNHcygSYKKex96I1K49OPA4zVduLzblzkgf3qSkNjj9gfxZBT4eXqAgBygb6AmvEXX0Ra2vGcHejjd+jf+a9q9Y6jbPolno14wB1q4Frkpu2qQSSPqK8gfFGxt9OttVtraaSeKOYqksnDMAw5P1qQ9NGPSZze0XLjHYeMU2gUFlGPPtSvTh8+c8jxTeAYHcCunjWgLw9L/su3G3o7U4CoIF4DtbzuT/xWP2g+jItS6ebXLVSJ7E75GX8xQ/myOxxwc0J+yyxbRNaHDAXEQAK5H5T/tXWry1S9tJ7V/ngmiZH3KCNpGDRWmH6PC87SQsysBxxuXkU00EfiLOaOJgZI5VYY5yGGD/cCpOp9Nk03Wr7T5ldXtpmjJ24zg8Z/TFZ6JgDazNEQVEts/8AUYIP9aOWNxKJekq6fM82xxjP9qe2GlxRqMorDzTV9MWF45GbgEck+4rBliilIQlx52jNc6Uv0MoswLG1IVfTXBHfFZXT7eM7gorb1ssAsbZHknisSyTP8pO0fQeP1qu2OooHu5Aw2ghUH96ElL7So+QfTvRD7I1JJ3E+TQF1NlsD9MU8I2xJyowimSYAe+T7UYygKAO1fWMBSLc35j3qYrn2rXBUZZbII4+anPyr7VsFwKHuZMA4NWWIyC4k8VBGCz4xyay3zHPimOkW25/WYcL2+9MhQ/T7cQxcj5zyxohm5xWrsFGBWseXahYGdH1LSpHT5V8e1aWNiEhEZGT5qyzTxmLaMHNbWmlPKu9Bx3ry6ipeHR0IYrJo34yBWZ4ARhj9qP1L1bZ8NjFK552k59qrkmnsDZ9bWkKPl8Gn1l+HWPI7YqqSyyZwM010wyPGEJOKkZ7okZUZ1mVHkKrV/wDhXp6xabLfMvzTtsT/ALR3qi3GnyTTqqDLMcD712DTbNNJ0i2slGPRhGTj+Y9608aHysl2C6lmeYoATzzWYogjKiqB78V8ZEjie5ftnjPn61nQw93dCQ52544rcGyyWS+jaAt3xmqp1FO93eC3QnLHsParLq9wsFqfHGKR9OWRnvWu5RnJyM+KP+Cx0uw90SySztFXaA2OaKmfC1tIwUYHihGJdvpRulRWk27ZNAuWLHuakncKvevkG1c0v1O4CRk+PvQ8QUuzFGs3mZNgIye+fagUjM8yr3VTk4FCzTNNd4z5zj70409MJltozSsvWilfFlmt9V6RnJxGmoY+xKkCvK/xNkb93XgcksZOfqd9eqfj1GydI2eoLnNlqEMmfcbua8n/ABWkCm5jHG662r/UmrMXoy8KTpwGAfrTaHjn2PegLFPk7DnxTCADhfHiurjWhL0ehP2WSo0vXcs2fXiIJHH5DXZXwuwYLjn7cVxv9lplW01xGLg+pC2APGCK7BIdsjZypOSCvfGf9aWXo8Xo87/HzQt/xHV4RsTUYElLHsu3hj/QZpTa9OW9n6NxZkwP6IyGJY8985rrPxhSG5udOV4CWVGLSkf8sn8n6kf51z+4kMr7AxAPLEDx7Vlz8h11RWo27AJLRiuXm3f/AICtRAnY5JPknxRcx/lFDyHwO9Yk2yzRoxCjCjA7Yoa5k24XPPmpZW2KScE0unckkk96sirK5SoHuZSOTwazYW5lkEjrx4rWKFp5sePNOYIdiAACtUVSM0nbNdvFfBfep9mea+K4FWIUEnIVfrS2Y5NHXrYJoE9wadCMzbwmaZY1HJNP40WGIKBwBQ2j2+yEzP3YcD2FSXUmOAaDYEjDOXbHei7RON396CtV3ODTVF2xCiiM/9k=";
@@ -151,7 +155,7 @@ function ensureOrders(transactions) {
 // Transfers aren't included (they touch two accounts, so a single number
 // would be ambiguous) — only income/expense rows get a running balance.
 function computeRunningBalances(accounts, transactions) {
-  const byOrder = [...transactions].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const byOrder = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
   const running = {};
   accounts.forEach((a) => { running[a.id] = a.initialBalance || 0; });
   const result = new Map();
@@ -363,6 +367,7 @@ function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editin
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(isoDay(new Date()));
+  const [hora, setHora] = useState(isoTime(new Date()));
   const [accountId, setAccountId] = useState(accounts[0]?.id);
   const [toAccountId, setToAccountId] = useState(accounts[1]?.id || accounts[0]?.id);
   const [categoryId, setCategoryId] = useState(null);
@@ -371,11 +376,11 @@ function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editin
   useEffect(() => {
     if (!open) return;
     if (editing) {
-      setType(editing.type); setAmount(String(editing.amount)); setDate(isoDay(editing.date));
+      setType(editing.type); setAmount(String(editing.amount)); setDate(isoDay(editing.date)); setHora(isoTime(editing.date));
       setAccountId(editing.accountId); setToAccountId(editing.toAccountId || accounts[0]?.id);
       setCategoryId(editing.categoryId); setNote(editing.note || "");
     } else {
-      setType(defaultType || "expense"); setAmount(""); setDate(isoDay(new Date()));
+      setType(defaultType || "expense"); setAmount(""); setDate(isoDay(new Date())); setHora(isoTime(new Date()));
       setAccountId(accounts[0]?.id); setToAccountId(accounts[1]?.id || accounts[0]?.id);
       setCategoryId(null); setNote("");
     }
@@ -388,8 +393,11 @@ function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editin
 
   const save = () => {
     if (!canSave) return;
+    const [h, m] = (hora || "00:00").split(":").map(Number);
+    const combined = new Date(`${date}T00:00:00`);
+    combined.setHours(h || 0, m || 0, 0, 0);
     onSave({
-      id: editing?.id || uid(), type, amount: parseFloat(amount), date: new Date(date).toISOString(),
+      id: editing?.id || uid(), type, amount: parseFloat(amount), date: combined.toISOString(),
       accountId, toAccountId: type === "transfer" ? toAccountId : null,
       categoryId: type === "transfer" ? null : categoryId, note,
     });
@@ -423,9 +431,15 @@ function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editin
           </div>
         </div>
 
-        <div className="mb-4">
-          <label className="text-[12px] font-medium" style={{ color: C.muted }}>Fecha</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+        <div className="mb-4 flex gap-2">
+          <div className="flex-1">
+            <label className="text-[12px] font-medium" style={{ color: C.muted }}>Fecha</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          </div>
+          <div style={{ width: 108 }}>
+            <label className="text-[12px] font-medium" style={{ color: C.muted }}>Hora</label>
+            <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          </div>
         </div>
 
         <div className="mb-4">
@@ -493,18 +507,13 @@ function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editin
 
 /* ---------------------------------- transaction row ---------------------------------- */
 
-function TxRow({ tx, categories, accounts, onClick, balanceAfter, dragProps, isDragging }) {
+function TxRow({ tx, categories, accounts, onClick, balanceAfter }) {
   const cat = categories.find((c) => c.id === tx.categoryId);
   const acc = accounts.find((a) => a.id === tx.accountId);
   const toAcc = accounts.find((a) => a.id === tx.toAccountId);
   const isTransfer = tx.type === "transfer";
   return (
-    <div className="w-full flex items-center gap-2" {...(dragProps || {})} style={{ touchAction: dragProps ? "manipulation" : undefined }}>
-      {dragProps && (
-        <span className="shrink-0" style={{ color: C.muted, opacity: isDragging ? 1 : 0.35, cursor: "grab" }}>
-          <GripVertical size={15} />
-        </span>
-      )}
+    <div className="w-full flex items-center gap-2">
       <button onClick={onClick} className="flex-1 min-w-0 flex items-center gap-3 py-2.5 text-left">
         {isTransfer ? (
           <div className="flex items-center justify-center rounded-full shrink-0" style={{ width: 38, height: 38, backgroundColor: C.blue + "1c" }}>
@@ -516,7 +525,7 @@ function TxRow({ tx, categories, accounts, onClick, balanceAfter, dragProps, isD
             {isTransfer ? `${acc?.name} → ${toAcc?.name}` : (cat?.name || "Otros")}
           </p>
           <p className="text-[12px] truncate" style={{ color: C.muted }}>
-            {new Date(tx.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}{tx.note ? ` · ${tx.note}` : ""}{!isTransfer ? ` · ${acc?.name}` : ""}
+            {new Date(tx.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })} · {isoTime(tx.date)}{tx.note ? ` · ${tx.note}` : ""}{!isTransfer ? ` · ${acc?.name}` : ""}
           </p>
         </div>
         <div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -530,28 +539,6 @@ function TxRow({ tx, categories, accounts, onClick, balanceAfter, dragProps, isD
   );
 }
 
-// Wraps TxRow with dnd-kit sortable behaviour. Dragging is triggered by
-// pressing directly on the row (grip icon is just a visual cue) — a short
-// tap still opens the edit modal thanks to the sensors' activation
-// constraints (see Movimientos below).
-function SortableTxRow({ tx, categories, accounts, onClick, balanceAfter }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tx.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-    position: "relative",
-    zIndex: isDragging ? 10 : "auto",
-    backgroundColor: isDragging ? C.surfaceAlt : "transparent",
-  };
-  return (
-    <div ref={setNodeRef} style={style}>
-      <TxRow tx={tx} categories={categories} accounts={accounts} onClick={onClick} balanceAfter={balanceAfter}
-        dragProps={{ ...attributes, ...listeners }} isDragging={isDragging} />
-    </div>
-  );
-}
-
 // Same idea, for reordering whole dashboard cards on Inicio.
 function SortableSection({ id, children }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -561,7 +548,7 @@ function SortableSection({ id, children }) {
     opacity: isDragging ? 0.6 : 1,
     zIndex: isDragging ? 10 : "auto",
     position: "relative",
-    touchAction: "manipulation",
+    touchAction: "none",
   };
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -731,7 +718,7 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
 
 /* ---------------------------------- MOVIMIENTOS ---------------------------------- */
 
-function Movimientos({ accounts, categories, transactions, accountFilter, setAccountFilter, openEdit, setTransactions }) {
+function Movimientos({ accounts, categories, transactions, accountFilter, setAccountFilter, openEdit }) {
   const [period, setPeriod] = useState({ type: "month", anchor: new Date() });
   const [query, setQuery] = useState("");
   const [start, end] = getRange(period.type, period.anchor, period.customStart, period.customEnd);
@@ -740,15 +727,10 @@ function Movimientos({ accounts, categories, transactions, accountFilter, setAcc
     .filter((t) => inRange(t, start, end) && filterByAccount(t, accountFilter))
     .filter((t) => !query || (t.note || "").toLowerCase().includes(query.toLowerCase()) || (categories.find((c) => c.id === t.categoryId)?.name || "").toLowerCase().includes(query.toLowerCase()));
 
-  // Display order: newest date first, and within the same day, the most
-  // recently-ordered item first — this is also the sequence dnd-kit uses
-  // for drag & drop, so dragging always moves items relative to what's on
-  // screen (both within a day and across day groups).
-  const flatList = [...filtered].sort((a, b) => {
-    const byDate = new Date(b.date) - new Date(a.date);
-    if (byDate !== 0) return byDate;
-    return (b.order ?? 0) - (a.order ?? 0);
-  });
+  // Display order: newest date and time first. This is fully automatic now —
+  // no manual drag-to-reorder — so the list always reflects when each
+  // transaction actually happened.
+  const flatList = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const groups = [];
   flatList.forEach((t) => {
@@ -760,49 +742,6 @@ function Movimientos({ accounts, categories, transactions, accountFilter, setAcc
 
   const totalPeriod = filtered.filter((t) => t.type !== "transfer").reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
   const balanceMap = useMemo(() => computeRunningBalances(accounts, transactions), [accounts, transactions]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } })
-  );
-
-  const handleDragEnd = (event) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = flatList.findIndex((t) => t.id === active.id);
-    const newIndex = flatList.findIndex((t) => t.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const reordered = arrayMove(flatList, oldIndex, newIndex);
-    const movedTx = reordered[newIndex];
-    const before = reordered[newIndex - 1];
-    const after = reordered[newIndex + 1];
-
-    // Fractional indexing: slot the new order value between its neighbours
-    // so every other transaction (even ones outside this filtered view)
-    // keeps its relative place — no need to renumber the whole history.
-    let newOrder;
-    if (before && after) newOrder = ((before.order ?? 0) + (after.order ?? 0)) / 2;
-    else if (before) newOrder = (before.order ?? 0) + 1;
-    else if (after) newOrder = (after.order ?? 0) - 1;
-    else newOrder = movedTx.order ?? 0;
-
-    // If it was dropped into a different day's group, move it to that day
-    // (keeping its original time of day) so the date header stays correct.
-    const refTx = before || after;
-    let newDate = movedTx.date;
-    if (refTx) {
-      const refDay = new Date(refTx.date);
-      const ownDay = new Date(movedTx.date);
-      if (refDay.toDateString() !== ownDay.toDateString()) {
-        const merged = new Date(refDay);
-        merged.setHours(ownDay.getHours(), ownDay.getMinutes(), ownDay.getSeconds(), 0);
-        newDate = merged.toISOString();
-      }
-    }
-
-    setTransactions((prev) => prev.map((t) => t.id === movedTx.id ? { ...t, order: newOrder, date: newDate } : t));
-  };
 
   return (
     <div className="space-y-3 pb-4">
@@ -818,21 +757,17 @@ function Movimientos({ accounts, categories, transactions, accountFilter, setAcc
         {flatList.length === 0 ? (
           <p className="text-[13px] py-8 text-center" style={{ color: C.muted }}>No hay movimientos en este período.</p>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
-            <SortableContext items={flatList.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              {groups.map((g) => (
-                <div key={g.key} className="mb-1">
-                  <p className="text-[11.5px] font-semibold uppercase pt-2 pb-1" style={{ color: C.muted, letterSpacing: "0.03em" }}>{g.key}</p>
-                  <div className="divide-y" style={{ borderColor: C.border }}>
-                    {g.txs.map((t) => (
-                      <SortableTxRow key={t.id} tx={t} categories={categories} accounts={accounts}
-                        onClick={() => openEdit(t)} balanceAfter={balanceMap.get(t.id)} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </SortableContext>
-          </DndContext>
+          groups.map((g) => (
+            <div key={g.key} className="mb-1">
+              <p className="text-[11.5px] font-semibold uppercase pt-2 pb-1" style={{ color: C.muted, letterSpacing: "0.03em" }}>{g.key}</p>
+              <div className="divide-y" style={{ borderColor: C.border }}>
+                {g.txs.map((t) => (
+                  <TxRow key={t.id} tx={t} categories={categories} accounts={accounts}
+                    onClick={() => openEdit(t)} balanceAfter={balanceMap.get(t.id)} />
+                ))}
+              </div>
+            </div>
+          ))
         )}
       </Card>
 
@@ -1627,8 +1562,7 @@ export default function App() {
           )}
           {tab === "movimientos" && (
             <Movimientos accounts={accounts} categories={categories} transactions={transactions}
-              accountFilter={accountFilter} setAccountFilter={setAccountFilter} openEdit={openEdit}
-              setTransactions={setTransactions} />
+              accountFilter={accountFilter} setAccountFilter={setAccountFilter} openEdit={openEdit} />
           )}
           {tab === "reportes" && (
             <Reportes accounts={accounts} categories={categories} transactions={transactions}
