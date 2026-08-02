@@ -117,20 +117,6 @@ const NEW_DEFAULT_CATEGORIES = DEFAULT_CATEGORIES.filter(
   (c) => c.id === "cat-i-prestamo" || c.id === "cat-e-pago-prestamo"
 );
 
-function seedTransactions() {
-  const today = new Date();
-  const d = (offset) => { const x = new Date(today); x.setDate(x.getDate() - offset); return x.toISOString(); };
-  const first = new Date(today.getFullYear(), today.getMonth(), 3).toISOString();
-  return [
-    { id: uid(), type: "income", amount: 1392.41, date: first, accountId: "acc-banco", categoryId: "cat-i-salario", toAccountId: null, note: "Nómina", order: 0 },
-    { id: uid(), type: "expense", amount: 544, date: d(11), accountId: "acc-banco", categoryId: "cat-e-hogar", toAccountId: null, note: "", order: 1 },
-    { id: uid(), type: "expense", amount: 66, date: d(8), accountId: "acc-banco", categoryId: "cat-e-envios", toAccountId: null, note: "Envío a Venezuela", order: 2 },
-    { id: uid(), type: "expense", amount: 33.6, date: d(6), accountId: "acc-banco", categoryId: "cat-e-comida", toAccountId: null, note: "", order: 3 },
-    { id: uid(), type: "expense", amount: 20, date: d(4), accountId: "acc-efectivo", categoryId: "cat-e-otros", toAccountId: null, note: "", order: 4 },
-    { id: uid(), type: "expense", amount: 92.2, date: d(2), accountId: "acc-banco", categoryId: "cat-e-comida", toAccountId: null, note: "", order: 5 },
-  ];
-}
-
 /* ---------------------------------- transaction ordering / running balance ---------------------------------- */
 
 // `order` is a plain number used purely for manual sequencing: ascending
@@ -1351,7 +1337,7 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
       <Card>
         <SectionTitle>Botón flotante</SectionTitle>
         <SegRow label="" value={settings.fabMode}
-          options={[{ value: "simple", label: "Simple" }, { value: "menu", label: "Con menú" }, { value: "oculto", label: "Ocultar" }]}
+          options={[{ value: "simple", label: "Simple" }, { value: "menu", label: "Con menú" }]}
           onChange={(v) => updateSettings({ fabMode: v })} />
       </Card>
 
@@ -1462,8 +1448,17 @@ export default function App() {
   const [settings, setSettings] = useState({
     decimals: 2, thousands: "es", symbolVisible: true, symbolSide: "right",
     weekStart: "monday", dateOrder: "dmy", includeTransfers: true,
-    theme: "light", fabMode: "simple", currency: "EUR",
+    theme: "light", fabMode: "menu", currency: "EUR",
   });
+
+  useEffect(() => {
+    // Ask the browser to not auto-clear this site's saved data over time.
+    // Without this, browsers may evict storage for sites that aren't
+    // installed as an app if they go unused for a while.
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -1488,7 +1483,7 @@ export default function App() {
         const withOrders = ensureOrders(loadedTx);
         if (withOrders !== loadedTx) { await safeSet("transactions", withOrders); }
         setTransactions(withOrders);
-      } catch { const seed = seedTransactions(); setTransactions(seed); await safeSet("transactions", seed); }
+      } catch { setTransactions([]); await safeSet("transactions", []); }
       try {
         const s = await window.storage.get("savings-sim");
         setSim(JSON.parse(s.value));
@@ -1496,6 +1491,7 @@ export default function App() {
       try {
         const st = await window.storage.get("settings");
         const loaded = { currency: "EUR", ...JSON.parse(st.value) };
+        if (loaded.fabMode === "oculto") loaded.fabMode = "menu";
         setSettings(loaded);
         applyTheme(loaded.theme === "dark");
         applyFormatSettings(loaded);
@@ -1576,9 +1572,18 @@ export default function App() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: C.bg }}>
-        <div className="flex flex-col items-center gap-2 animate-pulse">
-          <LogoMark size={44} />
-          <span className="text-[13px]" style={{ color: C.muted }}>Cargando…</span>
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative flex items-center justify-center" style={{ width: 104, height: 104 }}>
+            <svg width="104" height="104" viewBox="0 0 104 104" className="absolute animate-spin" style={{ animationDuration: "1.2s" }}>
+              <circle cx="52" cy="52" r="46" fill="none" stroke={C.border} strokeWidth="4" />
+              <circle cx="52" cy="52" r="46" fill="none" stroke={C.primary} strokeWidth="4" strokeLinecap="round" strokeDasharray="80 209" />
+            </svg>
+            <LogoMark size={60} />
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-[16px] font-bold" style={{ color: C.ink }}>Cuenta Clara</span>
+            <span className="text-[12.5px]" style={{ color: C.muted }}>Cargando…</span>
+          </div>
         </div>
       </div>
     );
@@ -1635,15 +1640,15 @@ export default function App() {
         {settings.fabMode !== "oculto" && (
           <>
             {settings.fabMode === "menu" && fabExpanded && (
-              <div className="fixed z-40 flex flex-col items-end gap-2.5" style={{ bottom: 148, right: "calc(50% - 210px)" }}>
+              <div className="fixed z-40 flex flex-col items-end gap-2.5" style={{ bottom: 148, right: "max(16px, calc((100vw - 448px) / 2 + 16px))" }}>
                 {[
                   { type: "transfer", label: "Transferencia", color: C.blue, Icn: ArrowLeftRight },
                   { type: "income", label: "Ingreso", color: C.emerald, Icn: ArrowUpRight },
                   { type: "expense", label: "Gasto", color: C.rose, Icn: ArrowDownRight },
                 ].map((o) => (
                   <button key={o.type} onClick={() => { openAdd(o.type); setFabExpanded(false); }}
-                    className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full shadow-lg" style={{ backgroundColor: "#fff", border: `1px solid ${C.border}` }}>
-                    <div className="flex items-center justify-center rounded-full" style={{ width: 26, height: 26, backgroundColor: o.color }}>
+                    className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full shadow-lg whitespace-nowrap" style={{ backgroundColor: "#fff", border: `1px solid ${C.border}` }}>
+                    <div className="flex items-center justify-center rounded-full shrink-0" style={{ width: 26, height: 26, backgroundColor: o.color }}>
                       <o.Icn size={14} color="#fff" />
                     </div>
                     <span className="text-[12.5px] font-semibold" style={{ color: C.ink }}>{o.label}</span>
@@ -1653,7 +1658,7 @@ export default function App() {
             )}
             <button onClick={() => settings.fabMode === "menu" ? setFabExpanded((v) => !v) : openAdd()}
               className="fixed z-40 flex items-center justify-center rounded-full shadow-lg"
-              style={{ width: 56, height: 56, backgroundColor: C.primary, bottom: 84, right: "calc(50% - 210px)", transform: fabExpanded ? "rotate(45deg)" : "none", transition: "transform 0.15s" }}>
+              style={{ width: 56, height: 56, backgroundColor: C.primary, bottom: 84, right: "max(16px, calc((100vw - 448px) / 2 + 16px))", transform: fabExpanded ? "rotate(45deg)" : "none", transition: "transform 0.15s" }}>
               <Plus size={26} color="#fff" strokeWidth={2.5} />
             </button>
           </>
