@@ -20,6 +20,7 @@ import {
   Coffee, Plane, Gamepad2, Dumbbell, Baby, Dog, Fuel, Wifi, Shirt,
   Stethoscope, Film, Music, BookOpen, Wrench, TreePine, Bus, Bike,
   Scissors, PawPrint, Umbrella, Download, GripVertical,
+  Bell, BellRing, AlertTriangle, TrendingUp, TrendingDown, Flame, Sparkles, CircleAlert,
 } from "lucide-react";
 
 /* ---------------------------------- tokens ---------------------------------- */
@@ -229,10 +230,25 @@ function LogoMark({ size = 40 }) {
   );
 }
 
+// Solid-fill circular badge: strong brand color behind a white icon,
+// matching the rounded, high-contrast category icons used across popular
+// finance apps (and the reference screenshots for this app).
 function CatBadge({ cat, size = 38 }) {
+  const color = cat?.color || C.muted;
   return (
-    <div className="flex items-center justify-center rounded-full shrink-0" style={{ width: size, height: size, backgroundColor: (cat?.color || C.muted) + "22" }}>
-      <Icon name={cat?.icon} color={cat?.color || C.muted} size={size * 0.5} />
+    <div className="flex items-center justify-center rounded-full shrink-0"
+      style={{ width: size, height: size, backgroundColor: color, boxShadow: `0 2px 5px ${color}55` }}>
+      <Icon name={cat?.icon} color="#fff" size={size * 0.5} strokeWidth={2.2} />
+    </div>
+  );
+}
+
+// Same solid-circle treatment, generic (used for account icons, transfers, etc.)
+function SolidIconBadge({ icon, color, size = 30, Cmp }) {
+  return (
+    <div className="flex items-center justify-center rounded-full shrink-0"
+      style={{ width: size, height: size, backgroundColor: color, boxShadow: `0 2px 5px ${color}55` }}>
+      {Cmp ? <Cmp size={size * 0.5} color="#fff" strokeWidth={2.2} /> : <Icon name={icon} color="#fff" size={size * 0.5} strokeWidth={2.2} />}
     </div>
   );
 }
@@ -262,6 +278,12 @@ function AmountText({ value, type, size = "text-base" }) {
 
 /* ---------------------------------- period bar ---------------------------------- */
 
+// Small "3D" chip shadow, echoing the subtle depth used on the Registros
+// rows in the reference screenshots. Applied to every filter/period chip so
+// all of these controls read as one consistent, tactile family of tags.
+const CHIP_SHADOW = "0 1px 3px rgba(11,31,58,0.10)";
+const CHIP_SHADOW_ACTIVE = "0 2px 6px rgba(19,42,67,0.28)";
+
 function PeriodBar({ period, setPeriod, compact }) {
   const { type, anchor, customStart, customEnd } = period;
   const [showTypes, setShowTypes] = useState(false);
@@ -270,13 +292,17 @@ function PeriodBar({ period, setPeriod, compact }) {
     { id: "month", label: "Mes" }, { id: "year", label: "Año" }, { id: "custom", label: "Rango" },
   ];
   return (
-    <div>
+    <Card className="!p-3">
       {!compact && (
         <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1">
           {types.map((t) => (
             <button key={t.id} onClick={() => setPeriod({ ...period, type: t.id })}
               className="px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap"
-              style={{ backgroundColor: type === t.id ? C.ink : "#FFFFFF", color: type === t.id ? "#fff" : C.inkSoft, border: `1px solid ${type === t.id ? C.ink : C.border}` }}>
+              style={{
+                backgroundColor: type === t.id ? C.ink : "#FFFFFF", color: type === t.id ? "#fff" : C.inkSoft,
+                border: `1px solid ${type === t.id ? C.ink : C.border}`,
+                boxShadow: type === t.id ? CHIP_SHADOW_ACTIVE : CHIP_SHADOW,
+              }}>
               {t.label}
             </button>
           ))}
@@ -285,10 +311,10 @@ function PeriodBar({ period, setPeriod, compact }) {
       {type === "custom" ? (
         <div className="flex items-center gap-2">
           <input type="date" value={customStart || ""} onChange={(e) => setPeriod({ ...period, customStart: e.target.value })}
-            className="flex-1 px-2 py-2 rounded-xl text-[13px]" style={{ border: `1px solid ${C.border}` }} />
+            className="flex-1 px-2 py-2 rounded-xl text-[13px]" style={{ border: `1px solid ${C.border}`, backgroundColor: "#fff", boxShadow: CHIP_SHADOW }} />
           <span style={{ color: C.muted }}>→</span>
           <input type="date" value={customEnd || ""} onChange={(e) => setPeriod({ ...period, customEnd: e.target.value })}
-            className="flex-1 px-2 py-2 rounded-xl text-[13px]" style={{ border: `1px solid ${C.border}` }} />
+            className="flex-1 px-2 py-2 rounded-xl text-[13px]" style={{ border: `1px solid ${C.border}`, backgroundColor: "#fff", boxShadow: CHIP_SHADOW }} />
         </div>
       ) : (
         <div className="flex items-center justify-between rounded-xl px-1" style={{ backgroundColor: "#EFF2F6" }}>
@@ -297,7 +323,7 @@ function PeriodBar({ period, setPeriod, compact }) {
           <button onClick={() => setPeriod({ ...period, anchor: addPeriod(anchor, type, 1) })} className="p-2"><ChevronRight size={18} color={C.inkSoft} /></button>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -305,18 +331,28 @@ function PeriodBar({ period, setPeriod, compact }) {
 
 function AccountChips({ accounts, value, onChange }) {
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1">
-      <button onClick={() => onChange("all")} className="px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap"
-        style={{ backgroundColor: value === "all" ? C.ink : "#fff", color: value === "all" ? "#fff" : C.inkSoft, border: `1px solid ${value === "all" ? C.ink : C.border}` }}>
-        Todas
-      </button>
-      {accounts.map((a) => (
-        <button key={a.id} onClick={() => onChange(a.id)} className="px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap flex items-center gap-1.5"
-          style={{ backgroundColor: value === a.id ? C.ink : "#fff", color: value === a.id ? "#fff" : C.inkSoft, border: `1px solid ${value === a.id ? C.ink : C.border}` }}>
-          <Icon name={a.icon} size={13} color={value === a.id ? "#fff" : C.inkSoft} /> {a.name}
+    <Card className="!p-3">
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <button onClick={() => onChange("all")} className="px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap"
+          style={{
+            backgroundColor: value === "all" ? C.ink : "#fff", color: value === "all" ? "#fff" : C.inkSoft,
+            border: `1px solid ${value === "all" ? C.ink : C.border}`,
+            boxShadow: value === "all" ? CHIP_SHADOW_ACTIVE : CHIP_SHADOW,
+          }}>
+          Todas
         </button>
-      ))}
-    </div>
+        {accounts.map((a) => (
+          <button key={a.id} onClick={() => onChange(a.id)} className="px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap flex items-center gap-1.5"
+            style={{
+              backgroundColor: value === a.id ? C.ink : "#fff", color: value === a.id ? "#fff" : C.inkSoft,
+              border: `1px solid ${value === a.id ? C.ink : C.border}`,
+              boxShadow: value === a.id ? CHIP_SHADOW_ACTIVE : CHIP_SHADOW,
+            }}>
+            <Icon name={a.icon} size={13} color={value === a.id ? "#fff" : C.inkSoft} /> {a.name}
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -345,6 +381,143 @@ function inRange(tx, start, end) {
 function filterByAccount(tx, accountFilter) {
   if (accountFilter === "all") return true;
   return tx.accountId === accountFilter || tx.toAccountId === accountFilter;
+}
+
+/* ---------------------------------- insights / notifications engine ---------------------------------- */
+
+// Pure function: given the current data, works out a short list of
+// human-readable "insights" — overspend warnings, salary comparisons,
+// reminders, streaks, etc. Nothing here touches the DOM or storage, so it's
+// cheap to recompute on every render and easy to reuse for both the in-app
+// notification center and the (optional) browser push notifications.
+function sumByType(transactions, type, start, end, categoryId) {
+  return transactions
+    .filter((t) => t.type === type && inRange(t, start, end) && (!categoryId || t.categoryId === categoryId))
+    .reduce((s, t) => s + t.amount, 0);
+}
+
+function computeInsights(accounts, categories, transactions, now = new Date()) {
+  const insights = [];
+  const salaryCat = categories.find((c) => c.type === "income" && /salari|sueldo|nómina|nomina/i.test(c.name));
+
+  const thisMonthStart = startOfMonth(now), thisMonthEnd = endOfMonth(now);
+  const lastMonthAnchor = addPeriod(now, "month", -1);
+  const lastMonthStart = startOfMonth(lastMonthAnchor), lastMonthEnd = endOfMonth(lastMonthAnchor);
+  const yearStart = startOfYear(now);
+
+  const expenseThisMonth = sumByType(transactions, "expense", thisMonthStart, thisMonthEnd);
+  const expenseLastMonth = sumByType(transactions, "expense", lastMonthStart, lastMonthEnd);
+  const incomeThisMonth = sumByType(transactions, "income", thisMonthStart, thisMonthEnd);
+
+  // Gasto: este mes ya superó (o va por debajo de) el mes pasado
+  if (expenseLastMonth > 0) {
+    const diff = expenseThisMonth - expenseLastMonth;
+    if (diff > 0) {
+      insights.push({
+        id: "expense-over-last-month", kind: "expenseCompare", level: "warn", Icn: TrendingUp, color: C.rose,
+        title: "Ya gastaste más que el mes pasado",
+        message: `Este mes ya superaste el gasto total del mes anterior en ${eur(diff)}.`,
+      });
+    } else if (thisMonthEnd < now || now.getDate() >= 20) {
+      // Only celebrate "spent less" once there's enough of the month behind us
+      insights.push({
+        id: "expense-under-last-month", kind: "expenseCompare", level: "good", Icn: TrendingDown, color: C.emerald,
+        title: "Estás gastando menos que el mes pasado",
+        message: `Vas ${eur(Math.abs(diff))} por debajo de lo que gastaste el mes anterior.`,
+      });
+    }
+  }
+
+  // Sueldo: comparación con el mes pasado
+  if (salaryCat) {
+    const salaryThisMonth = sumByType(transactions, "income", thisMonthStart, thisMonthEnd, salaryCat.id);
+    const salaryLastMonth = sumByType(transactions, "income", lastMonthStart, lastMonthEnd, salaryCat.id);
+    if (salaryThisMonth > 0 && salaryLastMonth > 0) {
+      const diff = salaryThisMonth - salaryLastMonth;
+      if (diff > 0) {
+        insights.push({
+          id: "salary-up", kind: "salaryCompare", level: "good", Icn: TrendingUp, color: C.emerald,
+          title: "Tu sueldo subió respecto al mes pasado",
+          message: `Este mes cobraste ${eur(diff)} más que el mes anterior.`,
+        });
+      } else if (diff < 0) {
+        insights.push({
+          id: "salary-down", kind: "salaryCompare", level: "warn", Icn: TrendingDown, color: "#E08E45",
+          title: "Tu sueldo bajó respecto al mes pasado",
+          message: `Este mes cobraste ${eur(Math.abs(diff))} menos que el mes anterior.`,
+        });
+      }
+    }
+    if (salaryThisMonth > 0) {
+      // Was this month's salary the highest so far this year?
+      const monthsSoFar = now.getMonth() + 1;
+      let isMax = true;
+      for (let m = 0; m < monthsSoFar - 1; m++) {
+        const anchor = new Date(now.getFullYear(), m, 1);
+        const s = sumByType(transactions, "income", startOfMonth(anchor), endOfMonth(anchor), salaryCat.id);
+        if (s >= salaryThisMonth) { isMax = false; break; }
+      }
+      if (isMax && monthsSoFar > 1) {
+        insights.push({
+          id: "salary-year-high", kind: "salaryCompare", level: "good", Icn: Sparkles, color: C.blue,
+          title: "Tu mejor sueldo del año",
+          message: `${eur(salaryThisMonth)} es lo más alto que has cobrado en lo que va de ${now.getFullYear()}.`,
+        });
+      }
+    }
+  }
+
+  // Gasto de hoy vs. promedio diario de los últimos 30 días
+  const todayStart = startOfDay(now), todayEnd = endOfDay(now);
+  const spentToday = sumByType(transactions, "expense", todayStart, todayEnd);
+  const last30Start = startOfDay(addPeriod(now, "day", -30));
+  const last30End = startOfDay(now); // exclude today itself
+  const last30Total = sumByType(transactions, "expense", last30Start, last30End);
+  const avgDaily = last30Total / 30;
+  if (spentToday > 0 && avgDaily > 0 && spentToday > avgDaily * 1.6) {
+    insights.push({
+      id: "high-spend-today", kind: "overspendAlert", level: "warn", Icn: AlertTriangle, color: C.rose,
+      title: "Hoy has gastado más de lo habitual",
+      message: `Llevas ${eur(spentToday)} hoy, frente a un promedio diario de ${eur(avgDaily)}.`,
+    });
+  }
+
+  // Recordatorio: sin movimientos registrados hoy, avanzada la tarde
+  const hasTxToday = transactions.some((t) => inRange(t, todayStart, todayEnd));
+  if (!hasTxToday && now.getHours() >= 19) {
+    insights.push({
+      id: "log-reminder", kind: "dailyReminder", level: "info", Icn: Bell, color: C.blue,
+      title: "No has registrado gastos hoy",
+      message: "Tómate un minuto para anotar lo que gastaste hoy y mantener tus cuentas al día.",
+    });
+  }
+
+  // Racha de registro: días consecutivos con al menos un movimiento
+  let streak = 0;
+  for (let i = 0; i < 60; i++) {
+    const day = addPeriod(now, "day", -i);
+    const has = transactions.some((t) => inRange(t, startOfDay(day), endOfDay(day)));
+    if (has) streak++;
+    else { if (i === 0) continue; break; } // allow "today" to still be empty without breaking the streak
+  }
+  if (streak >= 3) {
+    insights.push({
+      id: "streak", kind: "stats", level: "good", Icn: Flame, color: "#E08E45",
+      title: `Racha de ${streak} días`,
+      message: `Llevas ${streak} días seguidos registrando movimientos. ¡Sigue así!`,
+    });
+  }
+
+  // Ratio gastado/ingresado del mes, si ya se pasó de la raya
+  if (incomeThisMonth > 0 && expenseThisMonth > incomeThisMonth) {
+    insights.push({
+      id: "over-income", kind: "overspendAlert", level: "warn", Icn: CircleAlert, color: C.rose,
+      title: "Este mes gastaste más de lo que ingresaste",
+      message: `Superaste tus ingresos del mes en ${eur(expenseThisMonth - incomeThisMonth)}.`,
+    });
+  }
+
+  return insights;
 }
 
 /* ---------------------------------- add/edit transaction modal ---------------------------------- */
@@ -502,9 +675,7 @@ function TxRow({ tx, categories, accounts, onClick, balanceAfter }) {
     <div className="w-full flex items-center gap-2">
       <button onClick={onClick} className="flex-1 min-w-0 flex items-center gap-3 py-2.5 text-left">
         {isTransfer ? (
-          <div className="flex items-center justify-center rounded-full shrink-0" style={{ width: 38, height: 38, backgroundColor: C.blue + "1c" }}>
-            <ArrowLeftRight size={17} color={C.blue} />
-          </div>
+          <SolidIconBadge Cmp={ArrowLeftRight} color={C.blue} size={38} />
         ) : <CatBadge cat={cat} />}
         <div className="flex-1 min-w-0">
           <p className="text-[14px] font-medium truncate" style={{ color: C.ink }}>
@@ -665,9 +836,7 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
         <div className="space-y-2.5">
           {accounts.map((a) => (
             <div key={a.id} className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center rounded-lg" style={{ width: 30, height: 30, backgroundColor: a.color + "1c" }}>
-                <Icon name={a.icon} size={15} color={a.color} />
-              </div>
+              <SolidIconBadge icon={a.icon} color={a.color} size={30} />
               <span className="flex-1 text-[13.5px]" style={{ color: C.inkSoft }}>{a.name}</span>
               <span className="text-[13.5px] font-semibold" style={{ color: C.ink, fontVariantNumeric: "tabular-nums" }}>{eur(accountBalance(a.id, accounts, transactions))}</span>
             </div>
@@ -1097,7 +1266,7 @@ function CategoriaForm({ onSave, onCancel, editing, type }) {
   );
 }
 
-function Mas({ accounts, setAccounts, categories, setCategories, transactions, setTransactions, settings, updateSettings }) {
+function Mas({ accounts, setAccounts, categories, setCategories, transactions, setTransactions, settings, updateSettings, openNotifications }) {
   const [section, setSection] = useState("cuentas");
   const [editingAcc, setEditingAcc] = useState(undefined);
   const [editingCat, setEditingCat] = useState(undefined);
@@ -1136,9 +1305,7 @@ function Mas({ accounts, setAccounts, categories, setCategories, transactions, s
             <div className="divide-y" style={{ borderColor: C.border }}>
               {accounts.map((a) => (
                 <div key={a.id} className="flex items-center gap-2.5 py-2.5">
-                  <div className="flex items-center justify-center rounded-lg" style={{ width: 34, height: 34, backgroundColor: a.color + "1c" }}>
-                    <Icon name={a.icon} size={16} color={a.color} />
-                  </div>
+                  <SolidIconBadge icon={a.icon} color={a.color} size={34} />
                   <div className="flex-1">
                     <p className="text-[13.5px] font-medium" style={{ color: C.ink }}>{a.name}</p>
                     <p className="text-[12px]" style={{ color: C.muted }}>{eur(accountBalance(a.id, accounts, transactions))}</p>
@@ -1183,7 +1350,7 @@ function Mas({ accounts, setAccounts, categories, setCategories, transactions, s
       ) : (
         <Ajustes accounts={accounts} categories={categories} transactions={transactions}
           setAccounts={setAccounts} setCategories={setCategories} setTransactions={setTransactions}
-          settings={settings} updateSettings={updateSettings} />
+          settings={settings} updateSettings={updateSettings} openNotifications={openNotifications} />
       )}
     </div>
   );
@@ -1207,7 +1374,7 @@ function SegRow({ label, options, value, onChange }) {
   );
 }
 
-function Ajustes({ accounts, categories, transactions, setAccounts, setCategories, setTransactions, settings, updateSettings }) {
+function Ajustes({ accounts, categories, transactions, setAccounts, setCategories, setTransactions, settings, updateSettings, openNotifications }) {
   const fileInputRef = React.useRef(null);
 
   const exportBackup = () => {
@@ -1325,6 +1492,21 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
           onChange={(v) => updateSettings({ includeTransfers: v })} />
       </Card>
 
+      <p className="text-[12px] font-semibold uppercase px-1" style={{ color: C.primary, letterSpacing: "0.04em" }}>Notificaciones</p>
+
+      <Card>
+        <div className="flex items-center gap-3">
+          <SolidIconBadge Cmp={BellRing} color={C.primary} size={38} />
+          <div className="flex-1 min-w-0">
+            <p className="text-[13.5px] font-semibold" style={{ color: C.ink }}>Avisos y estadísticas</p>
+            <p className="text-[12px]" style={{ color: C.muted }}>Recordatorios, comparativas de sueldo/gasto y rachas.</p>
+          </div>
+        </div>
+        <button onClick={openNotifications} className="w-full mt-3 py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
+          {settings.notifications?.enabled === false ? "Notificaciones desactivadas · Configurar" : "Configurar notificaciones"}
+        </button>
+      </Card>
+
       <p className="text-[12px] font-semibold uppercase px-1" style={{ color: C.primary, letterSpacing: "0.04em" }}>Apariencia</p>
 
       <Card>
@@ -1364,6 +1546,123 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
         </div>
       </Card>
     </div>
+  );
+}
+
+/* ---------------------------------- notifications UI ---------------------------------- */
+
+// iOS-style toggle switch, used for every on/off notification preference.
+function Switch({ value, onChange }) {
+  return (
+    <button onClick={() => onChange(!value)} className="relative shrink-0" role="switch" aria-checked={value}
+      style={{ width: 42, height: 25, borderRadius: 999, backgroundColor: value ? C.primary : "#D3DBE4", transition: "background-color 0.15s", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.08)" }}>
+      <span className="absolute rounded-full bg-white" style={{ width: 21, height: 21, top: 2, left: value ? 19 : 2, transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.25)" }} />
+    </button>
+  );
+}
+
+function SwitchRow({ label, hint, value, onChange, Icn, color }) {
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      {Icn && <SolidIconBadge Cmp={Icn} color={color || C.primary} size={30} />}
+      <div className="flex-1 min-w-0">
+        <p className="text-[13.5px] font-medium" style={{ color: C.ink }}>{label}</p>
+        {hint && <p className="text-[11.5px]" style={{ color: C.muted }}>{hint}</p>}
+      </div>
+      <Switch value={value} onChange={onChange} />
+    </div>
+  );
+}
+
+const NOTIF_DEFAULTS = {
+  enabled: true, dailyReminder: true, overspendAlert: true, salaryCompare: true, expenseCompare: true, stats: true, browserPush: false,
+};
+
+function InsightRow({ insight }) {
+  return (
+    <Card className="!p-3 flex items-start gap-3">
+      <SolidIconBadge Cmp={insight.Icn} color={insight.color} size={36} />
+      <div className="min-w-0">
+        <p className="text-[13.5px] font-semibold" style={{ color: C.ink }}>{insight.title}</p>
+        <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: C.inkSoft }}>{insight.message}</p>
+      </div>
+    </Card>
+  );
+}
+
+function NotificationsPanel({ open, onClose, insights, settings, updateSettings, onRequestPush }) {
+  if (!open) return null;
+  const notif = { ...NOTIF_DEFAULTS, ...settings.notifications };
+  const pushSupported = typeof window !== "undefined" && "Notification" in window;
+  const pushPermission = pushSupported ? Notification.permission : "unsupported";
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ backgroundColor: "rgba(15,42,74,0.5)" }} onClick={onClose}>
+      <div className="w-[88%] max-w-sm h-full overflow-y-auto" style={{ backgroundColor: C.bg }} onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 px-4 pt-4 pb-3 flex items-center gap-2.5" style={{ backgroundColor: C.primary }}>
+          <BellRing size={20} color="#fff" />
+          <p className="flex-1 text-white font-bold text-[15px]">Notificaciones</p>
+          <button onClick={onClose} className="p-1"><X size={20} color="#fff" /></button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          {!notif.enabled ? (
+            <Card><p className="text-[13px] text-center py-2" style={{ color: C.muted }}>Las notificaciones están desactivadas. Actívalas en Ajustes → Notificaciones.</p></Card>
+          ) : insights.length === 0 ? (
+            <Card><p className="text-[13px] text-center py-2" style={{ color: C.muted }}>Sin novedades por ahora. Vuelve más tarde.</p></Card>
+          ) : (
+            insights.map((i) => <InsightRow key={i.id} insight={i} />)
+          )}
+
+          <p className="text-[12px] font-semibold uppercase px-1 pt-2" style={{ color: C.primary, letterSpacing: "0.04em" }}>Preferencias</p>
+          <Card>
+            <SwitchRow label="Activar notificaciones" hint="Interruptor general de esta sección"
+              value={notif.enabled} onChange={(v) => updateSettings({ notifications: { ...notif, enabled: v } })} Icn={Bell} color={C.primary} />
+          </Card>
+          <Card className={notif.enabled ? "" : "opacity-50 pointer-events-none"}>
+            <div className="divide-y" style={{ borderColor: C.border }}>
+              <SwitchRow label="Recordatorio diario" hint="Avisa si aún no has registrado gastos hoy"
+                value={notif.dailyReminder} onChange={(v) => updateSettings({ notifications: { ...notif, dailyReminder: v } })} Icn={Bell} color={C.blue} />
+              <SwitchRow label="Gasto elevado del día" hint="Avisa si hoy gastas muy por encima de tu media"
+                value={notif.overspendAlert} onChange={(v) => updateSettings({ notifications: { ...notif, overspendAlert: v } })} Icn={AlertTriangle} color={C.rose} />
+              <SwitchRow label="Comparativa de sueldo" hint="Sube, baja o récord del año frente al mes anterior"
+                value={notif.salaryCompare} onChange={(v) => updateSettings({ notifications: { ...notif, salaryCompare: v } })} Icn={TrendingUp} color={C.emerald} />
+              <SwitchRow label="Comparativa de gasto" hint="Compara el gasto de este mes con el anterior"
+                value={notif.expenseCompare} onChange={(v) => updateSettings({ notifications: { ...notif, expenseCompare: v } })} Icn={TrendingDown} color="#E08E45" />
+              <SwitchRow label="Rachas y estadísticas" hint="Racha de días registrando y otros logros"
+                value={notif.stats} onChange={(v) => updateSettings({ notifications: { ...notif, stats: v } })} Icn={Flame} color="#E08E45" />
+            </div>
+          </Card>
+
+          <p className="text-[12px] font-semibold uppercase px-1 pt-2" style={{ color: C.primary, letterSpacing: "0.04em" }}>Notificaciones del teléfono</p>
+          <Card>
+            <SwitchRow label="Avisos del sistema" hint={
+              !pushSupported ? "Tu navegador no admite notificaciones del sistema"
+                : pushPermission === "denied" ? "Bloqueadas en los ajustes del navegador"
+                : "Muestra estos avisos como notificación del teléfono al abrir la app"
+            } value={notif.browserPush && pushPermission === "granted"} Icn={BellRing} color={C.primary}
+              onChange={async (v) => {
+                if (!pushSupported) return;
+                if (v) { const granted = await onRequestPush(); updateSettings({ notifications: { ...notif, browserPush: !!granted } }); }
+                else updateSettings({ notifications: { ...notif, browserPush: false } });
+              }} />
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NotificationBell({ count, onClick }) {
+  return (
+    <button onClick={onClick} className="relative p-2 -mr-1 shrink-0" aria-label="Notificaciones">
+      <Bell size={21} color="#fff" />
+      {count > 0 && (
+        <span className="absolute flex items-center justify-center rounded-full font-bold"
+          style={{ top: 2, right: 2, minWidth: 16, height: 16, padding: "0 3px", backgroundColor: C.rose, color: "#fff", fontSize: 10, border: `1.5px solid ${C.primary}` }}>
+          {count > 9 ? "9+" : count}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -1443,12 +1742,14 @@ export default function App() {
   const prevDashPeriodRef = useRef(dashPeriod);
   const [modal, setModal] = useState({ open: false, editing: null, defaultType: "expense" });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [fabExpanded, setFabExpanded] = useState(false);
   const [sim, setSim] = useState({ initial: "0", monthly: "100", rate: "0", mode: "goal", goal: "1000", months: "12" });
   const [settings, setSettings] = useState({
     decimals: 2, thousands: "es", symbolVisible: true, symbolSide: "right",
     weekStart: "monday", dateOrder: "dmy", includeTransfers: true,
     theme: "light", fabMode: "menu", currency: "EUR",
+    notifications: { ...NOTIF_DEFAULTS },
   });
 
   useEffect(() => {
@@ -1492,6 +1793,7 @@ export default function App() {
         const st = await window.storage.get("settings");
         const loaded = { currency: "EUR", ...JSON.parse(st.value) };
         if (loaded.fabMode === "oculto") loaded.fabMode = "menu";
+        loaded.notifications = { ...NOTIF_DEFAULTS, ...loaded.notifications };
         setSettings(loaded);
         applyTheme(loaded.theme === "dark");
         applyFormatSettings(loaded);
@@ -1554,6 +1856,48 @@ export default function App() {
     });
   }, []);
 
+  // Insights recompute whenever the underlying data changes. They're cheap
+  // (a handful of array scans over the transaction list) so no extra memoization ceremony is needed.
+  const notifSettings = { ...NOTIF_DEFAULTS, ...settings.notifications };
+  const allInsights = useMemo(() => (loading ? [] : computeInsights(accounts, categories, transactions)), [accounts, categories, transactions, loading]);
+  const visibleInsights = notifSettings.enabled ? allInsights.filter((i) => notifSettings[i.kind] !== false) : [];
+
+  const requestPush = useCallback(async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return false;
+    try {
+      const perm = await Notification.requestPermission();
+      return perm === "granted";
+    } catch { return false; }
+  }, []);
+
+  // Fires real system/browser notifications for insights the person hasn't
+  // already seen today, so re-opening the app doesn't spam the same alert
+  // over and over. This only works while the page/PWA can run JS (there's no
+  // backend push server here) — it covers "check on open" style reminders,
+  // not true background push while the app is fully closed.
+  useEffect(() => {
+    if (loading || !notifSettings.enabled || !notifSettings.browserPush) return;
+    if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return;
+    if (visibleInsights.length === 0) return;
+    (async () => {
+      const today = isoDay(new Date());
+      let seen = { date: today, ids: [] };
+      try {
+        const raw = await window.storage.get("notif-seen-today");
+        const parsed = JSON.parse(raw.value);
+        if (parsed.date === today) seen = parsed;
+      } catch { /* nothing stored yet */ }
+      const fresh = visibleInsights.filter((i) => !seen.ids.includes(i.id));
+      fresh.forEach((i) => {
+        try { new Notification(i.title, { body: i.message, tag: i.id }); } catch { /* ignore */ }
+      });
+      if (fresh.length) {
+        const nextSeen = { date: today, ids: [...seen.ids, ...fresh.map((i) => i.id)] };
+        try { await window.storage.set("notif-seen-today", JSON.stringify(nextSeen)); } catch { /* ignore */ }
+      }
+    })();
+  }, [visibleInsights, notifSettings.enabled, notifSettings.browserPush, loading]);
+
   const openAdd = useCallback((defaultType = "expense") => setModal({ open: true, editing: null, defaultType }), []);
   const openEdit = useCallback((tx) => setModal({ open: true, editing: tx, defaultType: tx.type }), []);
   const closeModal = () => setModal({ open: false, editing: null, defaultType: "expense" });
@@ -1608,6 +1952,7 @@ export default function App() {
               <p className="text-[15px] font-bold text-white leading-tight">Cuenta Clara</p>
               <p className="text-[10.5px] leading-snug" style={{ color: "#DCE9FF" }}>Desarrollado por: Juan Carlos Calderón</p>
             </div>
+            <NotificationBell count={visibleInsights.length} onClick={() => setNotifOpen(true)} />
             <button onClick={() => setMenuOpen(true)} className="p-2 -mr-1.5 shrink-0" aria-label="Abrir menú">
               <Menu size={22} color="#fff" />
             </button>
@@ -1633,7 +1978,8 @@ export default function App() {
           {tab === "ahorro" && <Ahorro sim={sim} setSim={setSim} />}
           {tab === "mas" && (
             <Mas accounts={accounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories}
-              transactions={transactions} setTransactions={setTransactions} settings={settings} updateSettings={updateSettings} />
+              transactions={transactions} setTransactions={setTransactions} settings={settings} updateSettings={updateSettings}
+              openNotifications={() => setNotifOpen(true)} />
           )}
         </main>
 
@@ -1665,6 +2011,9 @@ export default function App() {
         )}
 
         <ProfileMenu open={menuOpen} onClose={() => setMenuOpen(false)} tab={tab} setTab={setTab} />
+
+        <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} insights={visibleInsights}
+          settings={settings} updateSettings={updateSettings} onRequestPush={requestPush} />
 
         <nav className="fixed bottom-0 left-0 right-0 z-30 max-w-md mx-auto" style={{ backgroundColor: "#fff", borderTop: `1px solid ${C.border}` }}>
           <div className="flex items-stretch">
