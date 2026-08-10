@@ -14,14 +14,16 @@ import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifi
 import {
   Home, Utensils, Car, Send, Heart, ShoppingBag, Smartphone, HelpCircle,
   Briefcase, Banknote, Repeat, Landmark, Wallet, CreditCard, PiggyBank,
-  Gift, GraduationCap, Zap, Plus, X, ChevronLeft, ChevronRight,
+  Gift, GraduationCap, Zap, Plus, X, ChevronLeft, ChevronRight, ChevronDown,
   ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, Check,
   LayoutGrid, List, PieChart as PieIcon, Settings, Search, Menu, Mail, Code2,
   Coffee, Plane, Gamepad2, Dumbbell, Baby, Dog, Fuel, Wifi, Shirt,
   Stethoscope, Film, Music, BookOpen, Wrench, TreePine, Bus, Bike,
-  Scissors, PawPrint, Umbrella, Download, GripVertical,
+  Scissors, PawPrint, Umbrella, Download, GripVertical, FileDown,
   Bell, BellRing, AlertTriangle, TrendingUp, TrendingDown, Flame, Sparkles, CircleAlert,
+  Target, Trophy, CalendarDays, Percent, Lock, Fingerprint, ShieldCheck, KeyRound,
 } from "lucide-react";
+import { jsPDF } from "jspdf";
 
 /* ---------------------------------- tokens ---------------------------------- */
 
@@ -78,6 +80,12 @@ const eur = (n) => {
   const symbol = CURRENCY_SYMBOLS[FMT.currency] || "€";
   return FMT.symbolSide === "left" ? `${symbol}${num}` : `${num} ${symbol}`;
 };
+function hexToRgb(hex) {
+  const h = (hex || "#8BA0B6").replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(full, 16) || 0x8BA0B6;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
 const isoDay = (d) => new Date(d).toISOString().slice(0, 10);
 const isoTime = (d) => {
   const dt = new Date(d);
@@ -396,7 +404,7 @@ function sumByType(transactions, type, start, end, categoryId) {
     .reduce((s, t) => s + t.amount, 0);
 }
 
-function computeInsights(accounts, categories, transactions, now = new Date()) {
+function computeInsights(accounts, categories, transactions, now = new Date(), budgets = {}, goals = []) {
   const insights = [];
   const salaryCat = categories.find((c) => c.type === "income" && /salari|sueldo|nómina|nomina/i.test(c.name));
 
@@ -516,6 +524,36 @@ function computeInsights(accounts, categories, transactions, now = new Date()) {
       message: `Superaste tus ingresos del mes en ${eur(expenseThisMonth - incomeThisMonth)}.`,
     });
   }
+
+  // Presupuestos por categoría: aviso al 80% y al superar el límite
+  const usage = computeBudgetUsage(categories, transactions, budgets, now);
+  usage.forEach((u) => {
+    if (u.pct >= 100) {
+      insights.push({
+        id: `budget-over-${u.catId}`, kind: "budgetAlert", level: "warn", Icn: AlertTriangle, color: C.rose,
+        title: `Superaste el presupuesto de ${u.cat.name}`,
+        message: `Llevas ${eur(u.spent)} de un límite de ${eur(u.limit)} este mes.`,
+      });
+    } else if (u.pct >= 80) {
+      insights.push({
+        id: `budget-warn-${u.catId}`, kind: "budgetAlert", level: "warn", Icn: AlertTriangle, color: "#E08E45",
+        title: `Cerca del límite en ${u.cat.name}`,
+        message: `Ya llevas el ${u.pct.toFixed(0)}% del presupuesto de ${eur(u.limit)} este mes.`,
+      });
+    }
+  });
+
+  // Metas de ahorro alcanzadas
+  (goals || []).forEach((g) => {
+    const { reached, saved } = computeGoalProgress(g, transactions);
+    if (reached) {
+      insights.push({
+        id: `goal-reached-${g.id}`, kind: "goalReached", level: "good", Icn: Trophy, color: C.gold,
+        title: `¡Meta "${g.name}" alcanzada!`,
+        message: `Has ahorrado ${eur(saved)}, superando tu meta de ${eur(g.target)}.`,
+      });
+    }
+  });
 
   return insights;
 }
@@ -733,7 +771,88 @@ function SortableSection({ id, children, dark }) {
 /* ---------------------------------- INICIO (dashboard) ---------------------------------- */
 
 // ids + display order for the draggable dashboard cards
-const DEFAULT_DASHBOARD_ORDER = ["saldo", "ratio", "categorias", "cuentas", "movimientos"];
+const DEFAULT_DASHBOARD_ORDER = ["saldo", "ratio", "presupuestos", "categorias", "campeones", "comparativa", "cuentas", "movimientos"];
+
+/* --- estadísticas del mes: día/categoría "campeones" y comparativa mensual --- */
+
+function computeMonthChampions(transactions, categories, now = new Date()) {
+  const start = startOfMonth(now), end = endOfMonth(now);
+  const monthTx = transactions.filter((t) => t.type === "expense" && inRange(t, start, end));
+  if (monthTx.length === 0) return null;
+
+  const byWeekday = {};
+  monthTx.forEach((t) => {
+    const wd = new Date(t.date).getDay();
+    byWeekday[wd] = (byWeekday[wd] || 0) + t.amount;
+  });
+  const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const topWeekdayEntry = Object.entries(byWeekday).sort((a, b) => b[1] - a[1])[0];
+
+  const byCat = {};
+  monthTx.forEach((t) => { byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount; });
+  const topCatEntry = Object.entries(byCat).sort((a, b) => b[1] - a[1])[0];
+  const topCat = topCatEntry ? categories.find((c) => c.id === topCatEntry[0]) : null;
+
+  const totalMonth = monthTx.reduce((s, t) => s + t.amount, 0);
+  const daysSoFar = Math.min(now.getDate(), endOfMonth(now).getDate());
+  const avgDaily = totalMonth / daysSoFar;
+
+  return {
+    topWeekday: topWeekdayEntry ? weekdayNames[topWeekdayEntry[0]] : null,
+    topWeekdayAmt: topWeekdayEntry ? topWeekdayEntry[1] : 0,
+    topCat, topCatAmt: topCatEntry ? topCatEntry[1] : 0,
+    avgDaily, totalMonth,
+  };
+}
+
+function computeMonthlyComparison(transactions, monthsBack = 6) {
+  const now = new Date();
+  const data = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const anchor = addPeriod(now, "month", -i);
+    const s = startOfMonth(anchor), e = endOfMonth(anchor);
+    const income = sumByType(transactions, "income", s, e);
+    const expense = sumByType(transactions, "expense", s, e);
+    data.push({ label: `${MONTHS_SHORT[anchor.getMonth()]}`, income, expense });
+  }
+  return data;
+}
+
+/* --- tasa de ahorro mensual --- */
+function computeSavingsRate(transactions, now = new Date()) {
+  const thisStart = startOfMonth(now), thisEnd = endOfMonth(now);
+  const lastAnchor = addPeriod(now, "month", -1);
+  const lastStart = startOfMonth(lastAnchor), lastEnd = endOfMonth(lastAnchor);
+  const incomeThis = sumByType(transactions, "income", thisStart, thisEnd);
+  const expenseThis = sumByType(transactions, "expense", thisStart, thisEnd);
+  const incomeLast = sumByType(transactions, "income", lastStart, lastEnd);
+  const expenseLast = sumByType(transactions, "expense", lastStart, lastEnd);
+  const rateThis = incomeThis > 0 ? ((incomeThis - expenseThis) / incomeThis) * 100 : null;
+  const rateLast = incomeLast > 0 ? ((incomeLast - expenseLast) / incomeLast) * 100 : null;
+  return { rateThis, rateLast, incomeThis, expenseThis };
+}
+
+/* --- presupuestos por categoría --- */
+function computeBudgetUsage(categories, transactions, budgets, now = new Date()) {
+  const start = startOfMonth(now), end = endOfMonth(now);
+  const entries = Object.entries(budgets || {}).filter(([, limit]) => limit > 0);
+  return entries.map(([catId, limit]) => {
+    const cat = categories.find((c) => c.id === catId);
+    const spent = sumByType(transactions, "expense", start, end, catId);
+    const pct = limit > 0 ? Math.min(999, (spent / limit) * 100) : 0;
+    return { cat, catId, limit, spent, pct };
+  }).filter((e) => e.cat).sort((a, b) => b.pct - a.pct);
+}
+
+/* --- metas de ahorro --- */
+function computeGoalProgress(goal, transactions) {
+  const start = new Date(goal.createdAt);
+  const income = transactions.filter((t) => t.type === "income" && new Date(t.date) >= start).reduce((s, t) => s + t.amount, 0);
+  const expense = transactions.filter((t) => t.type === "expense" && new Date(t.date) >= start).reduce((s, t) => s + t.amount, 0);
+  const saved = Math.max(0, income - expense);
+  const pct = goal.target > 0 ? Math.min(100, (saved / goal.target) * 100) : 0;
+  return { saved, pct, remaining: Math.max(0, goal.target - saved), reached: saved >= goal.target };
+}
 
 function Inicio({ accounts, categories, transactions, period, setPeriod, accountFilter, setAccountFilter, openAdd, openEdit, settings, updateSettings }) {
   const [start, end] = getRange(period.type, period.anchor, period.customStart, period.customEnd);
@@ -759,6 +878,10 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
   const balanceMap = useMemo(() => computeRunningBalances(accounts, transactions), [accounts, transactions]);
 
   const spendRatio = income > 0 ? Math.min(100, (expense / income) * 100) : (expense > 0 ? 100 : 0);
+
+  const champions = useMemo(() => computeMonthChampions(transactions, categories), [transactions, categories]);
+  const monthlyComparison = useMemo(() => computeMonthlyComparison(transactions, 6), [transactions]);
+  const budgetUsage = useMemo(() => computeBudgetUsage(categories, transactions, settings.budgets), [categories, transactions, settings.budgets]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -828,6 +951,66 @@ function Inicio({ accounts, categories, transactions, period, setPeriod, account
             ))}
           </div>
         )}
+      </Card>
+    ) : null,
+    presupuestos: budgetUsage.length > 0 ? (
+      <Card>
+        <SectionTitle>Presupuestos por categoría</SectionTitle>
+        <div className="space-y-3">
+          {budgetUsage.map((u) => (
+            <div key={u.catId}>
+              <div className="flex items-center gap-2 mb-1">
+                <CatBadge cat={u.cat} size={26} />
+                <span className="flex-1 text-[13px]" style={{ color: C.ink }}>{u.cat.name}</span>
+                <span className="text-[12px] font-semibold" style={{ color: u.pct >= 100 ? C.rose : u.pct >= 80 ? "#E08E45" : C.inkSoft }}>
+                  {eur(u.spent)} / {eur(u.limit)}
+                </span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden ml-9" style={{ backgroundColor: "#EEF1F5" }}>
+                <div className="h-full rounded-full" style={{ width: `${Math.min(100, u.pct)}%`, backgroundColor: u.pct >= 100 ? C.rose : u.pct >= 80 ? "#E08E45" : C.emerald }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    ) : null,
+    campeones: champions ? (
+      <Card>
+        <SectionTitle>Resumen del mes</SectionTitle>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-xl p-2.5" style={{ backgroundColor: C.surfaceAlt }}>
+            <CalendarDays size={15} color={C.blue} />
+            <p className="text-[10.5px] mt-1" style={{ color: C.muted }}>Día que más gastas</p>
+            <p className="text-[12.5px] font-bold leading-tight" style={{ color: C.ink }}>{champions.topWeekday || "—"}</p>
+          </div>
+          <div className="rounded-xl p-2.5" style={{ backgroundColor: C.surfaceAlt }}>
+            <Trophy size={15} color={C.gold} />
+            <p className="text-[10.5px] mt-1" style={{ color: C.muted }}>Categoría más cara</p>
+            <p className="text-[12.5px] font-bold leading-tight truncate" style={{ color: C.ink }}>{champions.topCat?.name || "—"}</p>
+          </div>
+          <div className="rounded-xl p-2.5" style={{ backgroundColor: C.surfaceAlt }}>
+            <TrendingUp size={15} color={C.rose} />
+            <p className="text-[10.5px] mt-1" style={{ color: C.muted }}>Gasto medio diario</p>
+            <p className="text-[12.5px] font-bold leading-tight" style={{ color: C.ink }}>{eur(champions.avgDaily)}</p>
+          </div>
+        </div>
+      </Card>
+    ) : null,
+    comparativa: monthlyComparison.some((d) => d.income || d.expense) ? (
+      <Card>
+        <SectionTitle>Comparativa mes a mes</SectionTitle>
+        <div style={{ height: 170 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyComparison}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#EEF1F5" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.muted }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: C.muted }} axisLine={false} tickLine={false} width={36} />
+              <Tooltip formatter={(v) => eur(v)} />
+              <Bar dataKey="income" name="Ingresos" radius={[4, 4, 0, 0]} fill={C.emerald} />
+              <Bar dataKey="expense" name="Gastos" radius={[4, 4, 0, 0]} fill={C.rose} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </Card>
     ) : null,
     cuentas: (
@@ -1096,7 +1279,107 @@ function Reportes({ accounts, categories, transactions, accountFilter, setAccoun
 
 /* ---------------------------------- AHORRO (simulador) ---------------------------------- */
 
-function Ahorro({ sim, setSim }) {
+function GoalForm({ onSave, onCancel, editing }) {
+  const [name, setName] = useState(editing?.name || "");
+  const [target, setTarget] = useState(editing ? String(editing.target) : "");
+  return (
+    <Card className="mb-3">
+      <input placeholder='Nombre de la meta (ej. "Vacaciones")' value={name} onChange={(e) => setName(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-xl text-[14px] mb-2" style={{ border: `1px solid ${C.border}` }} />
+      <input type="number" placeholder="Importe objetivo (€)" value={target} onChange={(e) => setTarget(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-xl text-[14px] mb-3" style={{ border: `1px solid ${C.border}` }} />
+      <div className="flex gap-2">
+        <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-[13.5px] font-semibold" style={{ backgroundColor: "#F1F3F6", color: C.inkSoft }}>Cancelar</button>
+        <button onClick={() => name && parseFloat(target) > 0 && onSave({
+          id: editing?.id || uid(), name, target: parseFloat(target), createdAt: editing?.createdAt || new Date().toISOString(),
+        })} className="flex-1 py-2.5 rounded-xl text-[13.5px] font-semibold" style={{ backgroundColor: C.ink, color: "#fff" }}>Guardar</button>
+      </div>
+    </Card>
+  );
+}
+
+function MetasAhorro({ goals, setGoals, transactions }) {
+  const [editingGoal, setEditingGoal] = useState(undefined);
+  const saveGoal = (g) => {
+    setGoals((prev) => editingGoal ? prev.map((x) => x.id === g.id ? g : x) : [...prev, g]);
+    setEditingGoal(undefined);
+  };
+  const deleteGoal = (id) => {
+    if (!window.confirm("¿Eliminar esta meta de ahorro?")) return;
+    setGoals((prev) => prev.filter((g) => g.id !== id));
+  };
+  return (
+    <Card>
+      <SectionTitle right={
+        editingGoal === undefined && (
+          <button onClick={() => setEditingGoal(null)} className="flex items-center gap-1 text-[12.5px] font-semibold" style={{ color: C.primary }}>
+            <Plus size={14} /> Nueva meta
+          </button>
+        )
+      }>
+        <div className="flex items-center gap-1.5"><Target size={13} /> Metas de ahorro</div>
+      </SectionTitle>
+
+      {editingGoal !== undefined && <GoalForm editing={editingGoal || null} onSave={saveGoal} onCancel={() => setEditingGoal(undefined)} />}
+
+      {goals.length === 0 && editingGoal === undefined ? (
+        <p className="text-[13px] py-4 text-center" style={{ color: C.muted }}>Aún no tienes metas. Crea una para hacer seguimiento de tu ahorro.</p>
+      ) : (
+        <div className="space-y-3.5">
+          {goals.map((g) => {
+            const { saved, pct, remaining, reached } = computeGoalProgress(g, transactions);
+            return (
+              <div key={g.id}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[13.5px] font-medium flex items-center gap-1.5" style={{ color: C.ink }}>
+                    {reached && <Trophy size={13} color={C.gold} />} {g.name}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setEditingGoal(g)} className="p-1"><Pencil size={13} color={C.inkSoft} /></button>
+                    <button onClick={() => deleteGoal(g.id)} className="p-1"><Trash2 size={13} color={C.rose} /></button>
+                  </div>
+                </div>
+                <div className="h-2.5 rounded-full overflow-hidden mb-1" style={{ backgroundColor: "#EEF1F5" }}>
+                  <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: reached ? C.emerald : C.gold }} />
+                </div>
+                <p className="text-[11.5px]" style={{ color: C.muted }}>
+                  {eur(saved)} de {eur(g.target)} {reached ? "· ¡Meta alcanzada! 🎉" : `· Te faltan ${eur(remaining)}`}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function TasaAhorro({ transactions }) {
+  const { rateThis, rateLast } = useMemo(() => computeSavingsRate(transactions), [transactions]);
+  if (rateThis === null) return null;
+  const color = rateThis >= 20 ? C.emerald : rateThis >= 0 ? "#E08E45" : C.rose;
+  const trend = rateLast === null ? null : rateThis - rateLast;
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[13px] font-medium flex items-center gap-1.5" style={{ color: C.inkSoft }}><Percent size={13} /> Tasa de ahorro mensual</span>
+        <span className="text-[20px] font-bold" style={{ color }}>{rateThis.toFixed(0)}%</span>
+      </div>
+      <div className="h-2.5 rounded-full overflow-hidden mb-1.5" style={{ backgroundColor: "#EEF1F5" }}>
+        <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, rateThis))}%`, backgroundColor: color }} />
+      </div>
+      {trend !== null && (
+        <p className="text-[12px] flex items-center gap-1" style={{ color: trend >= 0 ? C.emerald : C.rose }}>
+          {trend >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+          {trend >= 0 ? "Mejorando" : "Empeorando"} frente al mes pasado ({trend >= 0 ? "+" : ""}{trend.toFixed(0)} pts)
+        </p>
+      )}
+      <p className="text-[11px] mt-1" style={{ color: C.muted }}>(Ingresos − Gastos) ÷ Ingresos de este mes.</p>
+    </Card>
+  );
+}
+
+function Ahorro({ sim, setSim, transactions, goals, setGoals }) {
   const { initial, monthly, rate, mode, goal, months } = sim;
 
   const result = useMemo(() => {
@@ -1122,6 +1405,9 @@ function Ahorro({ sim, setSim }) {
 
   return (
     <div className="space-y-4 pb-4">
+      <TasaAhorro transactions={transactions} />
+      <MetasAhorro goals={goals} setGoals={setGoals} transactions={transactions} />
+
       <Card style={{ backgroundColor: C.ink }}>
         <div className="flex items-center gap-2 mb-1">
           <PiggyBank size={18} color={C.gold} />
@@ -1374,6 +1660,144 @@ function SegRow({ label, options, value, onChange }) {
   );
 }
 
+// Etiqueta "3D" (mismo tratamiento de sombra que los chips de periodo/cuenta)
+// que despliega u oculta su contenido al pulsarla.
+function SettingsGroup({ label, Icn, open, onToggle, children }) {
+  return (
+    <div>
+      <button onClick={onToggle} className="w-full flex items-center gap-2 px-4 py-2.5 rounded-full"
+        style={{
+          backgroundColor: open ? C.ink : "#fff", color: open ? "#fff" : C.inkSoft,
+          border: `1px solid ${open ? C.ink : C.border}`,
+          boxShadow: open ? CHIP_SHADOW_ACTIVE : CHIP_SHADOW,
+        }}>
+        {Icn && <Icn size={15} color={open ? "#fff" : C.primary} />}
+        <span className="flex-1 text-left text-[13.5px] font-semibold">{label}</span>
+        <ChevronDown size={16} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </button>
+      {open && <div className="mt-2 space-y-3 px-0.5">{children}</div>}
+    </div>
+  );
+}
+
+// Registra o comprueba la huella/Face ID del dispositivo mediante WebAuthn.
+// No hay servidor: la credencial se guarda localmente y solo sirve para
+// confirmar presencia del propietario del teléfono, igual que un bloqueo
+// nativo de app.
+const WEBAUTHN_RP_NAME = "Cuenta Clara";
+async function biometricAvailable() {
+  try {
+    return typeof window !== "undefined" && window.PublicKeyCredential &&
+      await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch { return false; }
+}
+async function registerBiometric() {
+  try {
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: WEBAUTHN_RP_NAME },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "usuario-cuenta-clara", displayName: "Usuario" },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+        timeout: 60000,
+      },
+    });
+    return cred ? btoa(String.fromCharCode(...new Uint8Array(cred.rawId))) : null;
+  } catch { return null; }
+}
+async function verifyBiometric(credId) {
+  try {
+    const idBytes = Uint8Array.from(atob(credId), (c) => c.charCodeAt(0));
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        allowCredentials: [{ id: idBytes, type: "public-key" }],
+        userVerification: "required", timeout: 60000,
+      },
+    });
+    return !!assertion;
+  } catch { return false; }
+}
+// Ofuscación ligera del PIN (no es un hash criptográfico real: esta app no
+// tiene backend, así que solo evita guardarlo en texto plano en el storage).
+function obfuscatePin(pin) { return btoa(`cc-${pin}-lock`); }
+
+function SeguridadAjustes({ settings, updateSettings }) {
+  const appLock = settings.appLock || { enabled: false, pin: null, biometric: false };
+  const [settingPin, setSettingPin] = useState(false);
+  const [pin1, setPin1] = useState("");
+  const [pin2, setPin2] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [bioSupported, setBioSupported] = useState(false);
+
+  useEffect(() => { biometricAvailable().then(setBioSupported); }, []);
+
+  const startPinSetup = () => { setSettingPin(true); setPin1(""); setPin2(""); setPinError(""); };
+  const confirmPin = () => {
+    if (pin1.length < 4) { setPinError("El PIN debe tener al menos 4 dígitos."); return; }
+    if (pin1 !== pin2) { setPinError("Los PIN no coinciden."); return; }
+    updateSettings({ appLock: { ...appLock, enabled: true, pin: obfuscatePin(pin1) } });
+    setSettingPin(false);
+  };
+  const disableLock = () => {
+    if (!window.confirm("¿Desactivar el bloqueo de la app?")) return;
+    updateSettings({ appLock: { enabled: false, pin: null, biometric: false, credId: null } });
+  };
+  const toggleBiometric = async (v) => {
+    if (!v) { updateSettings({ appLock: { ...appLock, biometric: false, credId: null } }); return; }
+    const credId = await registerBiometric();
+    if (credId) updateSettings({ appLock: { ...appLock, biometric: true, credId } });
+    else window.alert("No se pudo registrar la huella / Face ID en este dispositivo.");
+  };
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-1">
+        <SolidIconBadge Cmp={Lock} color={C.primary} size={38} />
+        <div className="flex-1 min-w-0">
+          <p className="text-[13.5px] font-semibold" style={{ color: C.ink }}>Bloqueo de la app</p>
+          <p className="text-[12px]" style={{ color: C.muted }}>Pide PIN o huella al abrir Cuenta Clara.</p>
+        </div>
+      </div>
+
+      {!appLock.enabled && !settingPin && (
+        <button onClick={startPinSetup} className="w-full mt-3 py-2.5 rounded-xl text-[13px] font-semibold" style={{ backgroundColor: C.ink, color: "#fff" }}>
+          Activar bloqueo con PIN
+        </button>
+      )}
+
+      {settingPin && (
+        <div className="mt-3 space-y-2">
+          <input type="password" inputMode="numeric" maxLength={6} placeholder="Nuevo PIN (4-6 dígitos)" value={pin1}
+            onChange={(e) => setPin1(e.target.value.replace(/\D/g, ""))} className="w-full px-3 py-2.5 rounded-xl text-[15px] tracking-widest text-center" style={{ border: `1px solid ${C.border}` }} />
+          <input type="password" inputMode="numeric" maxLength={6} placeholder="Repite el PIN" value={pin2}
+            onChange={(e) => setPin2(e.target.value.replace(/\D/g, ""))} className="w-full px-3 py-2.5 rounded-xl text-[15px] tracking-widest text-center" style={{ border: `1px solid ${C.border}` }} />
+          {pinError && <p className="text-[12px]" style={{ color: C.rose }}>{pinError}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => setSettingPin(false)} className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold" style={{ backgroundColor: "#F1F3F6", color: C.inkSoft }}>Cancelar</button>
+            <button onClick={confirmPin} className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold" style={{ backgroundColor: C.ink, color: "#fff" }}>Guardar PIN</button>
+          </div>
+        </div>
+      )}
+
+      {appLock.enabled && !settingPin && (
+        <div className="mt-3 space-y-1 divide-y" style={{ borderColor: C.border }}>
+          <SwitchRow label="Bloqueo activado" hint="Pide el PIN cada vez que abres la app" value={true} onChange={disableLock} Icn={Lock} color={C.primary} />
+          <SwitchRow label="Desbloquear con huella / Face ID" Icn={Fingerprint} color={C.emerald}
+            hint={bioSupported ? "Usa el sensor biométrico del teléfono además del PIN" : "Tu dispositivo o navegador no ofrece huella/Face ID"}
+            value={!!appLock.biometric} onChange={toggleBiometric} />
+          <div className="pt-2.5">
+            <button onClick={startPinSetup} className="w-full py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
+              Cambiar PIN
+            </button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Ajustes({ accounts, categories, transactions, setAccounts, setCategories, setTransactions, settings, updateSettings, openNotifications }) {
   const fileInputRef = React.useRef(null);
 
@@ -1442,6 +1866,70 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
     window.alert("Base de datos reiniciada.");
   };
 
+  const [pdfMonth, setPdfMonth] = useState(isoDay(new Date()).slice(0, 7));
+  const exportMonthlyPDF = () => {
+    const [yearStr, monthStr] = pdfMonth.split("-");
+    const year = parseInt(yearStr), monthIdx = parseInt(monthStr) - 1;
+    const anchor = new Date(year, monthIdx, 1);
+    const start = startOfMonth(anchor), end = endOfMonth(anchor);
+    const monthTx = transactions.filter((t) => inRange(t, start, end));
+    const income = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+    const expense = monthTx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+    const balance = income - expense;
+    const byCat = {};
+    monthTx.filter((t) => t.type === "expense").forEach((t) => { byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount; });
+    const catRows = Object.entries(byCat).map(([id, amt]) => ({ cat: categories.find((c) => c.id === id), amt })).sort((a, b) => b.amt - a.amt);
+
+    const doc = new jsPDF();
+    doc.setFontSize(18); doc.setTextColor(29, 99, 209);
+    doc.text("Cuenta Clara", 14, 18);
+    doc.setFontSize(12); doc.setTextColor(70, 80, 95);
+    doc.text(`Resumen mensual · ${MONTHS[monthIdx]} ${year}`, 14, 26);
+    doc.setDrawColor(220, 231, 243); doc.line(14, 31, 196, 31);
+
+    doc.setFontSize(11); doc.setTextColor(20, 40, 60);
+    doc.text(`Ingresos: ${eur(income)}`, 14, 41);
+    doc.text(`Gastos: ${eur(expense)}`, 14, 48);
+    if (balance >= 0) doc.setTextColor(14, 150, 90); else doc.setTextColor(210, 60, 70);
+    doc.text(`Balance: ${eur(balance)}`, 14, 55);
+    doc.setTextColor(20, 40, 60);
+
+    doc.setFontSize(12);
+    doc.text("Gastos por categoría", 14, 68);
+    let y = 76;
+    const maxAmt = catRows[0]?.amt || 1;
+    if (catRows.length === 0) {
+      doc.setFontSize(10); doc.setTextColor(139, 160, 182);
+      doc.text("Sin gastos registrados en este mes.", 14, y);
+    }
+    catRows.forEach((r) => {
+      doc.setFontSize(10); doc.setTextColor(20, 40, 60);
+      doc.text(r.cat?.name || "Otros", 14, y);
+      doc.text(eur(r.amt), 196, y, { align: "right" });
+      const barWidth = Math.max(2, (r.amt / maxAmt) * 150);
+      const [r_, g_, b_] = hexToRgb(r.cat?.color);
+      doc.setFillColor(r_, g_, b_);
+      doc.rect(14, y + 2, barWidth, 3, "F");
+      y += 11;
+      if (y > 275) { doc.addPage(); y = 20; }
+    });
+
+    doc.setFontSize(9); doc.setTextColor(139, 160, 182);
+    doc.text("Generado con Cuenta Clara", 14, 290);
+    doc.save(`cuenta-clara-resumen-${pdfMonth}.pdf`);
+  };
+
+  const budgets = settings.budgets || {};
+  const expenseCats = categories.filter((c) => c.type === "expense");
+  const setBudget = (catId, value) => {
+    const next = { ...budgets };
+    if (!value || parseFloat(value) <= 0) delete next[catId]; else next[catId] = parseFloat(value);
+    updateSettings({ budgets: next });
+  };
+
+  const [openGroups, setOpenGroups] = useState({});
+  const toggleGroup = (id) => setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+
   return (
     <div className="space-y-3">
       <Card>
@@ -1455,96 +1943,131 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
         </div>
       </Card>
 
-      <p className="text-[12px] font-semibold uppercase px-1" style={{ color: C.primary, letterSpacing: "0.04em" }}>Generales</p>
+      <SettingsGroup label="General" Icn={Settings} open={!!openGroups.general} onToggle={() => toggleGroup("general")}>
+        <Card>
+          <SectionTitle>Formato de moneda</SectionTitle>
+          <p className="text-[26px] font-bold mb-3" style={{ color: C.ink, fontVariantNumeric: "tabular-nums" }}>{eur(6785)}</p>
+          <SegRow label="Moneda" value={settings.currency}
+            options={[{ value: "EUR", label: "€ Euro" }, { value: "USD", label: "$ Dólar" }]}
+            onChange={(v) => updateSettings({ currency: v })} />
+          <SegRow label="Separador" value={settings.thousands}
+            options={[{ value: "en", label: "1,000.00" }, { value: "es", label: "1.000,00" }]}
+            onChange={(v) => updateSettings({ thousands: v })} />
+          <SegRow label="Decimales" value={settings.decimals}
+            options={[{ value: 0, label: "0" }, { value: 2, label: "2" }, { value: 3, label: "3" }, { value: 4, label: "4" }]}
+            onChange={(v) => updateSettings({ decimals: v })} />
+          <SegRow label="Símbolo" value={settings.symbolVisible}
+            options={[{ value: false, label: "Oculto" }, { value: true, label: "Visible" }]}
+            onChange={(v) => updateSettings({ symbolVisible: v })} />
+          <SegRow label="Posición del símbolo" value={settings.symbolSide}
+            options={[{ value: "left", label: "Izquierda" }, { value: "right", label: "Derecha" }]}
+            onChange={(v) => updateSettings({ symbolSide: v })} />
+        </Card>
+        <Card>
+          <SectionTitle>Formato de fecha</SectionTitle>
+          <SegRow label="Primer día de la semana" value={settings.weekStart}
+            options={[{ value: "sunday", label: "Domingo" }, { value: "monday", label: "Lunes" }]}
+            onChange={(v) => updateSettings({ weekStart: v })} />
+        </Card>
+        <Card>
+          <SectionTitle>Transferencias</SectionTitle>
+          <p className="text-[12.5px] mb-2" style={{ color: C.inkSoft }}>Incluye o excluye las transferencias entre cuentas de los saldos.</p>
+          <SegRow label="" value={settings.includeTransfers}
+            options={[{ value: true, label: "Incluir en saldos" }, { value: false, label: "Excluir de saldos" }]}
+            onChange={(v) => updateSettings({ includeTransfers: v })} />
+        </Card>
+      </SettingsGroup>
 
-      <Card>
-        <SectionTitle>Formato de moneda</SectionTitle>
-        <p className="text-[26px] font-bold mb-3" style={{ color: C.ink, fontVariantNumeric: "tabular-nums" }}>{eur(6785)}</p>
-        <SegRow label="Moneda" value={settings.currency}
-          options={[{ value: "EUR", label: "€ Euro" }, { value: "USD", label: "$ Dólar" }]}
-          onChange={(v) => updateSettings({ currency: v })} />
-        <SegRow label="Separador" value={settings.thousands}
-          options={[{ value: "en", label: "1,000.00" }, { value: "es", label: "1.000,00" }]}
-          onChange={(v) => updateSettings({ thousands: v })} />
-        <SegRow label="Decimales" value={settings.decimals}
-          options={[{ value: 0, label: "0" }, { value: 2, label: "2" }, { value: 3, label: "3" }, { value: 4, label: "4" }]}
-          onChange={(v) => updateSettings({ decimals: v })} />
-        <SegRow label="Símbolo" value={settings.symbolVisible}
-          options={[{ value: false, label: "Oculto" }, { value: true, label: "Visible" }]}
-          onChange={(v) => updateSettings({ symbolVisible: v })} />
-        <SegRow label="Posición del símbolo" value={settings.symbolSide}
-          options={[{ value: "left", label: "Izquierda" }, { value: "right", label: "Derecha" }]}
-          onChange={(v) => updateSettings({ symbolSide: v })} />
-      </Card>
-
-      <Card>
-        <SectionTitle>Formato de fecha</SectionTitle>
-        <SegRow label="Primer día de la semana" value={settings.weekStart}
-          options={[{ value: "sunday", label: "Domingo" }, { value: "monday", label: "Lunes" }]}
-          onChange={(v) => updateSettings({ weekStart: v })} />
-      </Card>
-
-      <Card>
-        <SectionTitle>Transferencias</SectionTitle>
-        <p className="text-[12.5px] mb-2" style={{ color: C.inkSoft }}>Incluye o excluye las transferencias entre cuentas de los saldos.</p>
-        <SegRow label="" value={settings.includeTransfers}
-          options={[{ value: true, label: "Incluir en saldos" }, { value: false, label: "Excluir de saldos" }]}
-          onChange={(v) => updateSettings({ includeTransfers: v })} />
-      </Card>
-
-      <p className="text-[12px] font-semibold uppercase px-1" style={{ color: C.primary, letterSpacing: "0.04em" }}>Notificaciones</p>
-
-      <Card>
-        <div className="flex items-center gap-3">
-          <SolidIconBadge Cmp={BellRing} color={C.primary} size={38} />
-          <div className="flex-1 min-w-0">
-            <p className="text-[13.5px] font-semibold" style={{ color: C.ink }}>Avisos y estadísticas</p>
-            <p className="text-[12px]" style={{ color: C.muted }}>Recordatorios, comparativas de sueldo/gasto y rachas.</p>
+      <SettingsGroup label="Notificaciones" Icn={BellRing} open={!!openGroups.notif} onToggle={() => toggleGroup("notif")}>
+        <Card>
+          <div className="flex items-center gap-3">
+            <SolidIconBadge Cmp={BellRing} color={C.primary} size={38} />
+            <div className="flex-1 min-w-0">
+              <p className="text-[13.5px] font-semibold" style={{ color: C.ink }}>Avisos y estadísticas</p>
+              <p className="text-[12px]" style={{ color: C.muted }}>Recordatorios, comparativas, presupuestos y metas.</p>
+            </div>
           </div>
-        </div>
-        <button onClick={openNotifications} className="w-full mt-3 py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
-          {settings.notifications?.enabled === false ? "Notificaciones desactivadas · Configurar" : "Configurar notificaciones"}
-        </button>
-      </Card>
-
-      <p className="text-[12px] font-semibold uppercase px-1" style={{ color: C.primary, letterSpacing: "0.04em" }}>Apariencia</p>
-
-      <Card>
-        <SectionTitle>Tema de la aplicación</SectionTitle>
-        <SegRow label="" value={settings.theme}
-          options={[{ value: "light", label: "☀️ Claro" }, { value: "dark", label: "🌙 Oscuro" }]}
-          onChange={(v) => updateSettings({ theme: v })} />
-      </Card>
-
-      <Card>
-        <SectionTitle>Botón flotante</SectionTitle>
-        <SegRow label="" value={settings.fabMode}
-          options={[{ value: "simple", label: "Simple" }, { value: "menu", label: "Con menú" }]}
-          onChange={(v) => updateSettings({ fabMode: v })} />
-      </Card>
-
-      <p className="text-[12px] font-semibold uppercase px-1" style={{ color: C.primary, letterSpacing: "0.04em" }}>Base de datos</p>
-
-      <Card>
-        <p className="text-[12.5px] mb-3" style={{ color: C.inkSoft }}>
-          {accounts.length} cuentas · {categories.length} categorías · {transactions.length} movimientos guardados.
-        </p>
-        <div className="space-y-2">
-          <button onClick={exportBackup} className="w-full py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
-            Crear respaldo
+          <button onClick={openNotifications} className="w-full mt-3 py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
+            {settings.notifications?.enabled === false ? "Notificaciones desactivadas · Configurar" : "Configurar notificaciones"}
           </button>
-          <button onClick={exportCSV} className="w-full py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
-            <Download size={15} /> Exportar movimientos a CSV
+        </Card>
+      </SettingsGroup>
+
+      <SettingsGroup label="Presupuestos por categoría" Icn={AlertTriangle} open={!!openGroups.budgets} onToggle={() => toggleGroup("budgets")}>
+        <Card>
+          <SectionTitle>Límites mensuales de gasto</SectionTitle>
+          <p className="text-[12.5px] mb-3" style={{ color: C.inkSoft }}>
+            Fija un límite mensual por categoría. Verás la barra de progreso en Inicio y recibirás un aviso al 80% y al superarlo.
+          </p>
+          <div className="divide-y" style={{ borderColor: C.border }}>
+            {expenseCats.map((c) => (
+              <div key={c.id} className="flex items-center gap-2.5 py-2.5">
+                <CatBadge cat={c} size={30} />
+                <span className="flex-1 text-[13px]" style={{ color: C.ink }}>{c.name}</span>
+                <div className="flex items-center gap-1">
+                  <input type="number" min="0" placeholder="Sin límite" defaultValue={budgets[c.id] || ""}
+                    onBlur={(e) => setBudget(c.id, e.target.value)}
+                    className="w-24 px-2 py-1.5 rounded-lg text-[13px] text-right" style={{ border: `1px solid ${C.border}` }} />
+                  <span className="text-[12px]" style={{ color: C.muted }}>{CURRENCY_SYMBOLS[FMT.currency] || "€"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </SettingsGroup>
+
+      <SettingsGroup label="Seguridad" Icn={Lock} open={!!openGroups.security} onToggle={() => toggleGroup("security")}>
+        <SeguridadAjustes settings={settings} updateSettings={updateSettings} />
+      </SettingsGroup>
+
+      <SettingsGroup label="Apariencia" Icn={LayoutGrid} open={!!openGroups.appearance} onToggle={() => toggleGroup("appearance")}>
+        <Card>
+          <SectionTitle>Tema de la aplicación</SectionTitle>
+          <SegRow label="" value={settings.theme}
+            options={[{ value: "light", label: "☀️ Claro" }, { value: "dark", label: "🌙 Oscuro" }]}
+            onChange={(v) => updateSettings({ theme: v })} />
+        </Card>
+        <Card>
+          <SectionTitle>Botón flotante</SectionTitle>
+          <SegRow label="" value={settings.fabMode}
+            options={[{ value: "simple", label: "Simple" }, { value: "menu", label: "Con menú" }]}
+            onChange={(v) => updateSettings({ fabMode: v })} />
+        </Card>
+      </SettingsGroup>
+
+      <SettingsGroup label="Base de datos" Icn={Download} open={!!openGroups.database} onToggle={() => toggleGroup("database")}>
+        <Card>
+          <p className="text-[12.5px] mb-3" style={{ color: C.inkSoft }}>
+            {accounts.length} cuentas · {categories.length} categorías · {transactions.length} movimientos guardados.
+          </p>
+          <div className="space-y-2">
+            <button onClick={exportBackup} className="w-full py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
+              Crear respaldo
+            </button>
+            <button onClick={exportCSV} className="w-full py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
+              <Download size={15} /> Exportar movimientos a CSV
+            </button>
+            <button onClick={triggerImport} className="w-full py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
+              Restaurar respaldo
+            </button>
+            <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImport} className="hidden" />
+            <button onClick={resetDatabase} className="w-full py-2.5 rounded-xl text-[13px] font-semibold" style={{ backgroundColor: C.rose, color: "#fff" }}>
+              Resetear base de datos
+            </button>
+          </div>
+        </Card>
+        <Card>
+          <SectionTitle>Exportar resumen mensual en PDF</SectionTitle>
+          <p className="text-[12.5px] mb-3" style={{ color: C.inkSoft }}>
+            Genera un PDF con ingresos, gastos, balance y el gráfico de categorías de un mes concreto.
+          </p>
+          <input type="month" value={pdfMonth} onChange={(e) => setPdfMonth(e.target.value)}
+            className="w-full mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          <button onClick={exportMonthlyPDF} className="w-full py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ backgroundColor: C.ink, color: "#fff" }}>
+            <FileDown size={15} /> Exportar PDF del mes
           </button>
-          <button onClick={triggerImport} className="w-full py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: `1.5px solid ${C.primary}`, color: C.primary }}>
-            Restaurar respaldo
-          </button>
-          <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImport} className="hidden" />
-          <button onClick={resetDatabase} className="w-full py-2.5 rounded-xl text-[13px] font-semibold" style={{ backgroundColor: C.rose, color: "#fff" }}>
-            Resetear base de datos
-          </button>
-        </div>
-      </Card>
+        </Card>
+      </SettingsGroup>
     </div>
   );
 }
@@ -1576,6 +2099,7 @@ function SwitchRow({ label, hint, value, onChange, Icn, color }) {
 
 const NOTIF_DEFAULTS = {
   enabled: true, dailyReminder: true, overspendAlert: true, salaryCompare: true, expenseCompare: true, stats: true, browserPush: false,
+  budgetAlert: true, goalReached: true,
 };
 
 function InsightRow({ insight }) {
@@ -1630,6 +2154,10 @@ function NotificationsPanel({ open, onClose, insights, settings, updateSettings,
                 value={notif.expenseCompare} onChange={(v) => updateSettings({ notifications: { ...notif, expenseCompare: v } })} Icn={TrendingDown} color="#E08E45" />
               <SwitchRow label="Rachas y estadísticas" hint="Racha de días registrando y otros logros"
                 value={notif.stats} onChange={(v) => updateSettings({ notifications: { ...notif, stats: v } })} Icn={Flame} color="#E08E45" />
+              <SwitchRow label="Presupuestos por categoría" hint="Avisa al 80% y al superar un límite fijado"
+                value={notif.budgetAlert} onChange={(v) => updateSettings({ notifications: { ...notif, budgetAlert: v } })} Icn={AlertTriangle} color="#E08E45" />
+              <SwitchRow label="Metas de ahorro alcanzadas" hint="Avisa cuando llegas a una meta de ahorro"
+                value={notif.goalReached} onChange={(v) => updateSettings({ notifications: { ...notif, goalReached: v } })} Icn={Trophy} color={C.gold} />
             </div>
           </Card>
 
@@ -1726,6 +2254,80 @@ function ProfileMenu({ open, onClose, tab, setTab }) {
   );
 }
 
+/* ---------------------------------- LOCK SCREEN ---------------------------------- */
+
+function LockScreen({ appLock, onUnlock }) {
+  const [entry, setEntry] = useState("");
+  const [error, setError] = useState(false);
+  const [tryingBio, setTryingBio] = useState(false);
+
+  const tryBiometric = useCallback(async () => {
+    if (!appLock.biometric || !appLock.credId) return;
+    setTryingBio(true);
+    const ok = await verifyBiometric(appLock.credId);
+    setTryingBio(false);
+    if (ok) onUnlock();
+  }, [appLock, onUnlock]);
+
+  useEffect(() => { if (appLock.biometric && appLock.credId) tryBiometric(); }, []); // eslint-disable-line
+
+  const press = (d) => {
+    setError(false);
+    const next = (entry + d).slice(0, 6);
+    setEntry(next);
+    if (next.length >= 4) {
+      const stored = appLock.pin;
+      if (obfuscatePin(next) === stored) { onUnlock(); }
+      else if (next.length === 6) { setError(true); setTimeout(() => setEntry(""), 400); }
+    }
+  };
+  const del = () => setEntry((e) => e.slice(0, -1));
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: C.bg }}>
+      <LogoMark size={56} />
+      <p className="text-[16px] font-bold mt-3" style={{ color: C.ink }}>Cuenta Clara</p>
+      <p className="text-[12.5px] mb-6" style={{ color: C.muted }}>Introduce tu PIN para continuar</p>
+
+      <div className="flex gap-3 mb-6" style={{ animation: error ? "shake 0.3s" : "none" }}>
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <span key={i} className="rounded-full" style={{
+            width: 14, height: 14,
+            backgroundColor: i < entry.length ? (error ? C.rose : C.primary) : C.border,
+          }} />
+        ))}
+      </div>
+      <style>{`@keyframes shake { 10%,90%{transform:translateX(-4px)} 20%,80%{transform:translateX(4px)} 30%,50%,70%{transform:translateX(-6px)} 40%,60%{transform:translateX(6px)} }`}</style>
+
+      <div className="grid grid-cols-3 gap-4" style={{ width: 260 }}>
+        {["1","2","3","4","5","6","7","8","9"].map((d) => (
+          <button key={d} onClick={() => press(d)} className="rounded-full flex items-center justify-center text-[20px] font-semibold"
+            style={{ width: 72, height: 72, backgroundColor: C.surface, color: C.ink, border: `1px solid ${C.border}`, boxShadow: CHIP_SHADOW }}>
+            {d}
+          </button>
+        ))}
+        <div className="flex items-center justify-center">
+          {appLock.biometric && appLock.credId ? (
+            <button onClick={tryBiometric} disabled={tryingBio} className="rounded-full flex items-center justify-center"
+              style={{ width: 72, height: 72, backgroundColor: C.surface, border: `1px solid ${C.border}`, boxShadow: CHIP_SHADOW }}>
+              <Fingerprint size={26} color={C.primary} />
+            </button>
+          ) : <div style={{ width: 72, height: 72 }} />}
+        </div>
+        <button onClick={() => press("0")} className="rounded-full flex items-center justify-center text-[20px] font-semibold"
+          style={{ width: 72, height: 72, backgroundColor: C.surface, color: C.ink, border: `1px solid ${C.border}`, boxShadow: CHIP_SHADOW }}>
+          0
+        </button>
+        <button onClick={del} className="rounded-full flex items-center justify-center"
+          style={{ width: 72, height: 72, backgroundColor: "transparent", color: C.inkSoft }}>
+          <X size={20} />
+        </button>
+      </div>
+      {error && <p className="text-[12.5px] mt-4" style={{ color: C.rose }}>PIN incorrecto, inténtalo de nuevo.</p>}
+    </div>
+  );
+}
+
 /* ---------------------------------- APP ---------------------------------- */
 
 export default function App() {
@@ -1745,12 +2347,16 @@ export default function App() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [fabExpanded, setFabExpanded] = useState(false);
   const [sim, setSim] = useState({ initial: "0", monthly: "100", rate: "0", mode: "goal", goal: "1000", months: "12" });
+  const [goals, setGoals] = useState([]);
   const [settings, setSettings] = useState({
     decimals: 2, thousands: "es", symbolVisible: true, symbolSide: "right",
     weekStart: "monday", dateOrder: "dmy", includeTransfers: true,
     theme: "light", fabMode: "menu", currency: "EUR",
     notifications: { ...NOTIF_DEFAULTS },
+    budgets: {},
+    appLock: { enabled: false, pin: null, biometric: false, credId: null },
   });
+  const [unlocked, setUnlocked] = useState(false);
 
   useEffect(() => {
     // Ask the browser to not auto-clear this site's saved data over time.
@@ -1790,14 +2396,23 @@ export default function App() {
         setSim(JSON.parse(s.value));
       } catch { /* keep defaults */ }
       try {
+        const g = await window.storage.get("savings-goals");
+        setGoals(JSON.parse(g.value));
+      } catch { /* keep defaults */ }
+      let loadedSettings = null;
+      try {
         const st = await window.storage.get("settings");
         const loaded = { currency: "EUR", ...JSON.parse(st.value) };
         if (loaded.fabMode === "oculto") loaded.fabMode = "menu";
         loaded.notifications = { ...NOTIF_DEFAULTS, ...loaded.notifications };
+        loaded.budgets = loaded.budgets || {};
+        loaded.appLock = { enabled: false, pin: null, biometric: false, credId: null, ...loaded.appLock };
+        loadedSettings = loaded;
         setSettings(loaded);
         applyTheme(loaded.theme === "dark");
         applyFormatSettings(loaded);
       } catch { /* keep defaults */ }
+      if (!loadedSettings?.appLock?.enabled) setUnlocked(true);
       try {
         const af = await window.storage.get("dash-account-filter");
         setAccountFilter(JSON.parse(af.value));
@@ -1825,6 +2440,7 @@ export default function App() {
   useEffect(() => { if (!loading) safeSet("categories", categories); }, [categories, loading]);
   useEffect(() => { if (!loading) safeSet("transactions", transactions); }, [transactions, loading]);
   useEffect(() => { if (!loading) safeSet("savings-sim", sim); }, [sim, loading]);
+  useEffect(() => { if (!loading) safeSet("savings-goals", goals); }, [goals, loading]);
   useEffect(() => { if (!loading) safeSet("settings", settings); }, [settings, loading]);
   useEffect(() => { if (!loading) safeSet("dash-account-filter", accountFilter); }, [accountFilter, loading]);
   useEffect(() => {
@@ -1859,7 +2475,7 @@ export default function App() {
   // Insights recompute whenever the underlying data changes. They're cheap
   // (a handful of array scans over the transaction list) so no extra memoization ceremony is needed.
   const notifSettings = { ...NOTIF_DEFAULTS, ...settings.notifications };
-  const allInsights = useMemo(() => (loading ? [] : computeInsights(accounts, categories, transactions)), [accounts, categories, transactions, loading]);
+  const allInsights = useMemo(() => (loading ? [] : computeInsights(accounts, categories, transactions, new Date(), settings.budgets, goals)), [accounts, categories, transactions, loading, settings.budgets, goals]);
   const visibleInsights = notifSettings.enabled ? allInsights.filter((i) => notifSettings[i.kind] !== false) : [];
 
   const requestPush = useCallback(async () => {
@@ -1912,6 +2528,10 @@ export default function App() {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
     closeModal();
   };
+
+  if (!loading && settings.appLock?.enabled && !unlocked) {
+    return <LockScreen appLock={settings.appLock} onUnlock={() => setUnlocked(true)} />;
+  }
 
   if (loading) {
     return (
@@ -1975,7 +2595,7 @@ export default function App() {
             <Reportes accounts={accounts} categories={categories} transactions={transactions}
               accountFilter={accountFilter} setAccountFilter={setAccountFilter} />
           )}
-          {tab === "ahorro" && <Ahorro sim={sim} setSim={setSim} />}
+          {tab === "ahorro" && <Ahorro sim={sim} setSim={setSim} transactions={transactions} goals={goals} setGoals={setGoals} />}
           {tab === "mas" && (
             <Mas accounts={accounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories}
               transactions={transactions} setTransactions={setTransactions} settings={settings} updateSettings={updateSettings}
