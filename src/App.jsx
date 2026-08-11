@@ -22,8 +22,12 @@ import {
   Scissors, PawPrint, Umbrella, Download, GripVertical, FileDown,
   Bell, BellRing, AlertTriangle, TrendingUp, TrendingDown, Flame, Sparkles, CircleAlert,
   Target, Trophy, CalendarDays, Percent, Lock, Fingerprint, ShieldCheck, KeyRound,
+  Calculator, Delete, FileSpreadsheet, Mic, MicOff, ScanLine, Share2, TrendingUp as TrendUpIcn,
+  Camera, ImagePlus, CircleDollarSign, Building2, Store, Tv, ShowerHead, Fish, Cake,
+  Palette, Hammer, Sofa, Trees, Cross, Cigarette, Beer, Pizza, IceCreamCone, ShoppingCart,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx";
 
 /* ---------------------------------- tokens ---------------------------------- */
 
@@ -51,6 +55,9 @@ const ICONS = {
   Coffee, Plane, Gamepad2, Dumbbell, Baby, Dog, Fuel, Wifi, Shirt,
   Stethoscope, Film, Music, BookOpen, Wrench, TreePine, Bus, Bike,
   Scissors, PawPrint, Umbrella,
+  Calculator, ScanLine, Camera, ImagePlus, CircleDollarSign, Building2, Store, Tv,
+  ShowerHead, Fish, Cake, Palette, Hammer, Sofa, Trees, Cross, Cigarette, Beer,
+  Pizza, IceCreamCone, ShoppingCart,
 };
 
 const MONTHS = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
@@ -62,7 +69,34 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
 const FMT = { decimals: 2, thousands: "es", symbolVisible: true, symbolSide: "right", weekStart: "monday", dateOrder: "dmy", includeTransfers: true, currency: "EUR" };
 function applyFormatSettings(s) { Object.assign(FMT, s); }
 
-const CURRENCY_SYMBOLS = { EUR: "€", USD: "$" };
+const CURRENCIES = [
+  { code: "EUR", symbol: "€", flag: "🇪🇺", name: "Euro" },
+  { code: "USD", symbol: "$", flag: "🇺🇸", name: "Dólar estadounidense" },
+  { code: "GBP", symbol: "£", flag: "🇬🇧", name: "Libra esterlina" },
+  { code: "MXN", symbol: "$", flag: "🇲🇽", name: "Peso mexicano" },
+  { code: "ARS", symbol: "$", flag: "🇦🇷", name: "Peso argentino" },
+  { code: "COP", symbol: "$", flag: "🇨🇴", name: "Peso colombiano" },
+  { code: "CLP", symbol: "$", flag: "🇨🇱", name: "Peso chileno" },
+  { code: "PEN", symbol: "S/", flag: "🇵🇪", name: "Sol peruano" },
+  { code: "VES", symbol: "Bs", flag: "🇻🇪", name: "Bolívar venezolano" },
+  { code: "BRL", symbol: "R$", flag: "🇧🇷", name: "Real brasileño" },
+  { code: "UYU", symbol: "$U", flag: "🇺🇾", name: "Peso uruguayo" },
+  { code: "BOB", symbol: "Bs", flag: "🇧🇴", name: "Boliviano" },
+  { code: "PYG", symbol: "₲", flag: "🇵🇾", name: "Guaraní paraguayo" },
+  { code: "GTQ", symbol: "Q", flag: "🇬🇹", name: "Quetzal guatemalteco" },
+  { code: "DOP", symbol: "RD$", flag: "🇩🇴", name: "Peso dominicano" },
+  { code: "CRC", symbol: "₡", flag: "🇨🇷", name: "Colón costarricense" },
+  { code: "HNL", symbol: "L", flag: "🇭🇳", name: "Lempira hondureña" },
+  { code: "NIO", symbol: "C$", flag: "🇳🇮", name: "Córdoba nicaragüense" },
+  { code: "PAB", symbol: "B/.", flag: "🇵🇦", name: "Balboa panameño" },
+  { code: "CUP", symbol: "$", flag: "🇨🇺", name: "Peso cubano" },
+  { code: "CHF", symbol: "CHF", flag: "🇨🇭", name: "Franco suizo" },
+  { code: "CAD", symbol: "$", flag: "🇨🇦", name: "Dólar canadiense" },
+  { code: "JPY", symbol: "¥", flag: "🇯🇵", name: "Yen japonés" },
+  { code: "CNY", symbol: "¥", flag: "🇨🇳", name: "Yuan chino" },
+];
+const CURRENCY_SYMBOLS = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol]));
+const currencyInfo = (code) => CURRENCIES.find((c) => c.code === code) || CURRENCIES[0];
 
 function formatNumber(value) {
   const n = Math.abs(value || 0);
@@ -235,6 +269,18 @@ function LogoMark({ size = 40 }) {
         <div className="absolute rounded-full bg-white" style={{ width: size * 0.26, height: size * 0.26, top: "50%", left: "50%", transform: "translate(-50%,-50%)" }} />
       </div>
     </div>
+  );
+}
+
+// Circular badge with the country flag for a currency code, used next to
+// amounts and in the currency picker so the currency is recognizable at a glance.
+function CurrencyFlag({ code, size = 22 }) {
+  const cur = currencyInfo(code);
+  return (
+    <span className="inline-flex items-center justify-center rounded-full shrink-0 overflow-hidden"
+      style={{ width: size, height: size, backgroundColor: "#fff", border: `1px solid ${C.border}`, fontSize: size * 0.62, lineHeight: 1 }}>
+      {cur.flag}
+    </span>
   );
 }
 
@@ -560,7 +606,7 @@ function computeInsights(accounts, categories, transactions, now = new Date(), b
 
 /* ---------------------------------- add/edit transaction modal ---------------------------------- */
 
-function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editing, defaultType }) {
+function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editing, defaultType, transactions = [], dailyLimit }) {
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(isoDay(new Date()));
@@ -569,6 +615,20 @@ function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editin
   const [toAccountId, setToAccountId] = useState(accounts[1]?.id || accounts[0]?.id);
   const [categoryId, setCategoryId] = useState(null);
   const [note, setNote] = useState("");
+  const [showCalculator, setShowCalculator] = useState(false);
+
+  // Warns (without blocking) when today's expenses, including the amount being
+  // typed right now, would pass the daily spending limit set in Ajustes.
+  const dailyLimitWarning = useMemo(() => {
+    if (type !== "expense" || !dailyLimit || dailyLimit <= 0) return null;
+    const todayStr = isoDay(new Date());
+    const already = transactions
+      .filter((t) => t.type === "expense" && isoDay(t.date) === todayStr && t.id !== editing?.id)
+      .reduce((s, t) => s + t.amount, 0);
+    const projected = already + (parseFloat(amount) || 0);
+    if (projected <= dailyLimit) return null;
+    return `Límite diario de ${eur(dailyLimit)} superado: llevas ${eur(projected)} gastados hoy.`;
+  }, [type, dailyLimit, transactions, amount, editing]);
 
   useEffect(() => {
     if (!open) return;
@@ -621,12 +681,27 @@ function TxModal({ open, onClose, onSave, onDelete, accounts, categories, editin
 
         <div className="mb-4">
           <label className="text-[12px] font-medium" style={{ color: C.muted }}>Importe</label>
-          <div className="flex items-center rounded-xl px-3 mt-1" style={{ border: `1.5px solid ${C.border}` }}>
+          <div className="flex items-center gap-2 rounded-xl px-3 mt-1" style={{ border: `1.5px solid ${C.border}` }}>
+            <CurrencyFlag code={FMT.currency} size={22} />
             <input type="number" inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)}
               className="w-full py-3 text-2xl font-bold outline-none" style={{ color: typeColor, fontVariantNumeric: "tabular-nums" }} />
             <span className="text-lg font-semibold" style={{ color: C.muted }}>{CURRENCY_SYMBOLS[FMT.currency] || "€"}</span>
+            <button type="button" onClick={() => setShowCalculator(true)}
+              className="flex items-center justify-center rounded-lg shrink-0" style={{ width: 34, height: 34, backgroundColor: C.surfaceAlt }}>
+              <Calculator size={17} color={C.inkSoft} />
+            </button>
           </div>
+          {dailyLimitWarning && (
+            <div className="flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg" style={{ backgroundColor: `${C.rose}18` }}>
+              <AlertTriangle size={14} color={C.rose} />
+              <span className="text-[11.5px] font-medium" style={{ color: C.rose }}>{dailyLimitWarning}</span>
+            </div>
+          )}
         </div>
+        {showCalculator && (
+          <CalculatorModal initialValue={amount} onClose={() => setShowCalculator(false)}
+            onConfirm={(v) => { setAmount(v); setShowCalculator(false); }} />
+        )}
 
         <div className="mb-4 flex gap-2">
           <div className="flex-1">
@@ -1644,6 +1719,127 @@ function Mas({ accounts, setAccounts, categories, setCategories, transactions, s
 
 /* ---------------------------------- AJUSTES ---------------------------------- */
 
+// Bottom-sheet list of every supported currency (flag + name + code + symbol),
+// with a search box since the list is long. Used from Ajustes > Moneda.
+function CurrencyPickerModal({ value, onSelect, onClose }) {
+  const [q, setQ] = useState("");
+  const filtered = CURRENCIES.filter((c) => {
+    const s = q.trim().toLowerCase();
+    if (!s) return true;
+    return c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s);
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ backgroundColor: "rgba(11,31,58,0.45)" }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-3xl p-5 max-h-[80vh] flex flex-col" style={{ backgroundColor: C.surface }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold" style={{ color: C.ink }}>Elegir moneda</h2>
+          <button onClick={onClose}><X size={22} color={C.inkSoft} /></button>
+        </div>
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar moneda o código..."
+          className="w-full px-3 py-2.5 rounded-xl text-[14px] mb-3" style={{ border: `1px solid ${C.border}` }} />
+        <div className="overflow-y-auto -mx-5 px-5 divide-y" style={{ borderColor: C.border }}>
+          {filtered.map((c) => (
+            <button key={c.code} onClick={() => onSelect(c.code)}
+              className="w-full flex items-center gap-3 py-2.5 text-left">
+              <CurrencyFlag code={c.code} size={28} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13.5px] font-semibold truncate" style={{ color: C.ink }}>{c.name}</p>
+                <p className="text-[11.5px]" style={{ color: C.muted }}>{c.code} · {c.symbol}</p>
+              </div>
+              {value === c.code && <Check size={18} color={C.primary} />}
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="text-[13px] text-center py-6" style={{ color: C.muted }}>Sin resultados.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Small pocket calculator that opens next to "Importe" so Juan can work out a
+// sum or currency conversion without leaving the transaction form. "Usar este
+// valor" writes the result straight back into the amount field.
+function CalculatorModal({ initialValue, onClose, onConfirm }) {
+  const [expr, setExpr] = useState(initialValue ? String(initialValue) : "");
+  const [error, setError] = useState(false);
+
+  const press = (t) => { setError(false); setExpr((prev) => prev + t); };
+  const clear = () => { setExpr(""); setError(false); };
+  const backspace = () => setExpr((prev) => prev.slice(0, -1));
+
+  const evaluate = () => {
+    // Only digits/operators are ever appended by the buttons above, so this
+    // is safe to evaluate directly (no free-text input reaches this).
+    const clean = expr.replace(/[^0-9+\-*/().,]/g, "").replace(/,/g, ".");
+    if (!clean) return null;
+    try {
+      // eslint-disable-next-line no-new-func
+      const result = Function(`"use strict"; return (${clean})`)();
+      if (typeof result !== "number" || !isFinite(result)) throw new Error("bad result");
+      return Math.round(result * 100) / 100;
+    } catch {
+      return null;
+    }
+  };
+
+  const onEquals = () => {
+    const result = evaluate();
+    if (result === null) { setError(true); return; }
+    setExpr(String(result));
+  };
+
+  const useValue = () => {
+    const result = evaluate();
+    if (result === null) { setError(true); return; }
+    onConfirm(String(Math.abs(result)));
+  };
+
+  const numKeys = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "C", "0", ".", "+"];
+  const opMap = { "÷": "/", "×": "*", "−": "-", "+": "+" };
+  const isNumOrDot = (k) => "0123456789.".includes(k);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center" style={{ backgroundColor: "rgba(11,31,58,0.5)" }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-3xl p-5" style={{ backgroundColor: C.surface }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: C.ink }}><Calculator size={18} /> Calculadora</h2>
+          <button onClick={onClose}><X size={22} color={C.inkSoft} /></button>
+        </div>
+        <div className="rounded-xl px-4 py-4 mb-3 text-right" style={{ backgroundColor: C.surfaceAlt }}>
+          <p className="text-2xl font-bold truncate" style={{ color: error ? C.rose : C.ink, fontVariantNumeric: "tabular-nums" }}>
+            {expr || "0"}
+          </p>
+          {error && <p className="text-[11.5px] mt-1" style={{ color: C.rose }}>Operación no válida</p>}
+        </div>
+        <div className="grid grid-cols-4 gap-2 mb-2">
+          {numKeys.map((k) => (
+            <button key={k}
+              onClick={() => (k === "C" ? clear() : press(opMap[k] || k))}
+              className="py-3 rounded-xl text-[16px] font-semibold"
+              style={{
+                backgroundColor: k === "C" ? `${C.rose}18` : isNumOrDot(k) ? C.surfaceAlt : C.primarySoft,
+                color: k === "C" ? C.rose : isNumOrDot(k) ? C.ink : C.primary,
+              }}>
+              {k}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-4 gap-2 mb-3">
+          <button onClick={backspace} className="col-span-1 py-3 rounded-xl flex items-center justify-center" style={{ backgroundColor: C.surfaceAlt }}>
+            <Delete size={17} color={C.inkSoft} />
+          </button>
+          <button onClick={onEquals} className="col-span-3 py-3 rounded-xl text-[16px] font-semibold" style={{ backgroundColor: C.primary, color: "#fff" }}>=</button>
+        </div>
+        <button onClick={useValue} className="w-full py-3 rounded-xl text-[14px] font-semibold" style={{ backgroundColor: C.ink, color: "#fff" }}>
+          Usar este valor
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SegRow({ label, options, value, onChange }) {
   return (
     <div className="mb-3 last:mb-0">
@@ -1800,6 +1996,7 @@ function SeguridadAjustes({ settings, updateSettings }) {
 
 function Ajustes({ accounts, categories, transactions, setAccounts, setCategories, setTransactions, settings, updateSettings, openNotifications }) {
   const fileInputRef = React.useRef(null);
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
 
   const exportBackup = () => {
     const payload = JSON.stringify({ accounts, categories, transactions, settings, exportedAt: new Date().toISOString() }, null, 2);
@@ -1866,58 +2063,176 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
     window.alert("Base de datos reiniciada.");
   };
 
-  const [pdfMonth, setPdfMonth] = useState(isoDay(new Date()).slice(0, 7));
-  const exportMonthlyPDF = () => {
-    const [yearStr, monthStr] = pdfMonth.split("-");
-    const year = parseInt(yearStr), monthIdx = parseInt(monthStr) - 1;
-    const anchor = new Date(year, monthIdx, 1);
-    const start = startOfMonth(anchor), end = endOfMonth(anchor);
-    const monthTx = transactions.filter((t) => inRange(t, start, end));
-    const income = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-    const expense = monthTx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  /* -------- Reportes: varios tipos de informe, exportables a PDF o Excel -------- */
+  const [reportType, setReportType] = useState("monthly");
+  const [reportFormat, setReportFormat] = useState("pdf");
+  const [reportMonth, setReportMonth] = useState(isoDay(new Date()).slice(0, 7));
+  const [reportYear, setReportYear] = useState(String(new Date().getFullYear()));
+  const [reportStart, setReportStart] = useState(isoDay(startOfMonth(new Date())));
+  const [reportEnd, setReportEnd] = useState(isoDay(new Date()));
+  const [reportCategoryId, setReportCategoryId] = useState(categories[0]?.id || "");
+  const [reportAccountId, setReportAccountId] = useState(accounts[0]?.id || "");
+
+  // Builds a normalized { title, subtitle, txs, income, expense, balance, catRows }
+  // object for whichever report type/range is currently selected in the UI.
+  const buildReportContext = () => {
+    let start, end, title, subtitle;
+    const rangeLabel = () => `${new Date(`${reportStart}T00:00:00`).toLocaleDateString("es-ES")} – ${new Date(`${reportEnd}T00:00:00`).toLocaleDateString("es-ES")}`;
+
+    if (reportType === "monthly") {
+      const [y, m] = reportMonth.split("-");
+      const yr = parseInt(y), mo = parseInt(m) - 1;
+      const anchor = new Date(yr, mo, 1);
+      start = startOfMonth(anchor); end = endOfMonth(anchor);
+      title = "Resumen mensual"; subtitle = `${MONTHS[mo]} ${yr}`;
+    } else if (reportType === "annual") {
+      const yr = parseInt(reportYear);
+      start = new Date(yr, 0, 1); end = new Date(yr, 11, 31, 23, 59, 59);
+      title = "Resumen anual"; subtitle = String(yr);
+    } else if (reportType === "range") {
+      start = new Date(`${reportStart}T00:00:00`); end = new Date(`${reportEnd}T23:59:59`);
+      title = "Rango personalizado"; subtitle = rangeLabel();
+    } else if (reportType === "category") {
+      start = new Date(`${reportStart}T00:00:00`); end = new Date(`${reportEnd}T23:59:59`);
+      const cat = categories.find((c) => c.id === reportCategoryId);
+      title = `Categoría: ${cat?.name || "—"}`; subtitle = rangeLabel();
+    } else if (reportType === "account") {
+      start = new Date(`${reportStart}T00:00:00`); end = new Date(`${reportEnd}T23:59:59`);
+      const acc = accounts.find((a) => a.id === reportAccountId);
+      title = `Cuenta: ${acc?.name || "—"}`; subtitle = rangeLabel();
+    } else {
+      start = new Date(0); end = new Date(8640000000000000);
+      title = "Listado completo"; subtitle = `${transactions.length} movimientos registrados`;
+    }
+
+    let txs = transactions.filter((t) => inRange(t, start, end));
+    if (reportType === "category") txs = txs.filter((t) => t.categoryId === reportCategoryId);
+    if (reportType === "account") txs = txs.filter((t) => t.accountId === reportAccountId || t.toAccountId === reportAccountId);
+    txs = [...txs].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const income = txs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+    const expense = txs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
     const balance = income - expense;
     const byCat = {};
-    monthTx.filter((t) => t.type === "expense").forEach((t) => { byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount; });
+    txs.filter((t) => t.type === "expense").forEach((t) => { byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount; });
     const catRows = Object.entries(byCat).map(([id, amt]) => ({ cat: categories.find((c) => c.id === id), amt })).sort((a, b) => b.amt - a.amt);
 
+    return { title, subtitle, txs, income, expense, balance, catRows };
+  };
+
+  const txRow = (t) => {
+    const cat = categories.find((c) => c.id === t.categoryId);
+    const acc = accounts.find((a) => a.id === t.accountId);
+    const toAcc = accounts.find((a) => a.id === t.toAccountId);
+    return {
+      fecha: new Date(t.date).toLocaleDateString("es-ES"),
+      tipo: t.type === "income" ? "Ingreso" : t.type === "expense" ? "Gasto" : "Transferencia",
+      categoria: cat?.name || "",
+      cuenta: acc?.name || "",
+      cuentaDestino: toAcc?.name || "",
+      importe: t.amount,
+      nota: t.note || "",
+    };
+  };
+
+  const exportReportPDF = () => {
+    const ctx = buildReportContext();
     const doc = new jsPDF();
     doc.setFontSize(18); doc.setTextColor(29, 99, 209);
     doc.text("Cuenta Clara", 14, 18);
     doc.setFontSize(12); doc.setTextColor(70, 80, 95);
-    doc.text(`Resumen mensual · ${MONTHS[monthIdx]} ${year}`, 14, 26);
+    doc.text(`${ctx.title} · ${ctx.subtitle}`, 14, 26);
     doc.setDrawColor(220, 231, 243); doc.line(14, 31, 196, 31);
 
     doc.setFontSize(11); doc.setTextColor(20, 40, 60);
-    doc.text(`Ingresos: ${eur(income)}`, 14, 41);
-    doc.text(`Gastos: ${eur(expense)}`, 14, 48);
-    if (balance >= 0) doc.setTextColor(14, 150, 90); else doc.setTextColor(210, 60, 70);
-    doc.text(`Balance: ${eur(balance)}`, 14, 55);
+    doc.text(`Ingresos: ${eur(ctx.income)}`, 14, 41);
+    doc.text(`Gastos: ${eur(ctx.expense)}`, 14, 48);
+    doc.setTextColor(...(ctx.balance >= 0 ? [14, 150, 90] : [210, 60, 70]));
+    doc.text(`Balance: ${eur(ctx.balance)}`, 14, 55);
     doc.setTextColor(20, 40, 60);
 
-    doc.setFontSize(12);
-    doc.text("Gastos por categoría", 14, 68);
-    let y = 76;
-    const maxAmt = catRows[0]?.amt || 1;
-    if (catRows.length === 0) {
-      doc.setFontSize(10); doc.setTextColor(139, 160, 182);
-      doc.text("Sin gastos registrados en este mes.", 14, y);
+    let y = 68;
+    if (ctx.catRows.length > 0) {
+      doc.setFontSize(12);
+      doc.text("Gastos por categoría", 14, y);
+      y += 8;
+      const maxAmt = ctx.catRows[0]?.amt || 1;
+      ctx.catRows.forEach((r) => {
+        doc.setFontSize(10); doc.setTextColor(20, 40, 60);
+        doc.text(r.cat?.name || "Otros", 14, y);
+        doc.text(eur(r.amt), 196, y, { align: "right" });
+        const barWidth = Math.max(2, (r.amt / maxAmt) * 150);
+        const [r_, g_, b_] = hexToRgb(r.cat?.color);
+        doc.setFillColor(r_, g_, b_);
+        doc.rect(14, y + 2, barWidth, 3, "F");
+        y += 11;
+        if (y > 275) { doc.addPage(); y = 20; }
+      });
+      y += 4;
     }
-    catRows.forEach((r) => {
-      doc.setFontSize(10); doc.setTextColor(20, 40, 60);
-      doc.text(r.cat?.name || "Otros", 14, y);
-      doc.text(eur(r.amt), 196, y, { align: "right" });
-      const barWidth = Math.max(2, (r.amt / maxAmt) * 150);
-      const [r_, g_, b_] = hexToRgb(r.cat?.color);
-      doc.setFillColor(r_, g_, b_);
-      doc.rect(14, y + 2, barWidth, 3, "F");
-      y += 11;
-      if (y > 275) { doc.addPage(); y = 20; }
+
+    if (y > 260) { doc.addPage(); y = 20; }
+    doc.setFontSize(12); doc.setTextColor(20, 40, 60);
+    doc.text("Movimientos", 14, y);
+    y += 8;
+    doc.setFontSize(9); doc.setTextColor(139, 160, 182);
+    doc.text("Fecha", 14, y); doc.text("Tipo", 42, y); doc.text("Categoría / cuenta", 68, y); doc.text("Importe", 196, y, { align: "right" });
+    y += 5;
+    doc.setDrawColor(220, 231, 243); doc.line(14, y, 196, y);
+    y += 6;
+    if (ctx.txs.length === 0) {
+      doc.setFontSize(10); doc.setTextColor(139, 160, 182);
+      doc.text("Sin movimientos en este rango.", 14, y);
+    }
+    ctx.txs.forEach((t) => {
+      const row = txRow(t);
+      doc.setFontSize(9); doc.setTextColor(20, 40, 60);
+      doc.text(row.fecha, 14, y);
+      doc.text(row.tipo, 42, y);
+      const label = row.categoria || [row.cuenta, row.cuentaDestino].filter(Boolean).join(" → ");
+      doc.text(label.length > 34 ? label.slice(0, 34) + "…" : label, 68, y);
+      doc.setTextColor(t.type === "expense" ? 214 : t.type === "income" ? 14 : 29, t.type === "expense" ? 72 : t.type === "income" ? 150 : 99, t.type === "expense" ? 79 : t.type === "income" ? 90 : 209);
+      doc.text(`${t.type === "expense" ? "-" : t.type === "income" ? "+" : ""}${eur(row.importe)}`, 196, y, { align: "right" });
+      y += 7;
+      if (y > 285) { doc.addPage(); y = 20; }
     });
 
     doc.setFontSize(9); doc.setTextColor(139, 160, 182);
-    doc.text("Generado con Cuenta Clara", 14, 290);
-    doc.save(`cuenta-clara-resumen-${pdfMonth}.pdf`);
+    doc.text("Generado con Cuenta Clara", 14, 292);
+    doc.save(`cuenta-clara-${reportType}-${isoDay(new Date())}.pdf`);
   };
+
+  const exportReportExcel = () => {
+    const ctx = buildReportContext();
+    const wb = XLSX.utils.book_new();
+
+    const resumenData = [
+      ["Cuenta Clara — " + ctx.title, ctx.subtitle],
+      [],
+      ["Ingresos", ctx.income],
+      ["Gastos", ctx.expense],
+      ["Balance", ctx.balance],
+      [],
+      ["Gastos por categoría"],
+      ["Categoría", "Importe"],
+      ...ctx.catRows.map((r) => [r.cat?.name || "Otros", r.amt]),
+    ];
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+    wsResumen["!cols"] = [{ wch: 28 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+
+    const movRows = ctx.txs.map(txRow);
+    const wsMov = XLSX.utils.json_to_sheet(movRows, {
+      header: ["fecha", "tipo", "categoria", "cuenta", "cuentaDestino", "importe", "nota"],
+    });
+    XLSX.utils.sheet_add_aoa(wsMov, [["Fecha", "Tipo", "Categoría", "Cuenta", "Cuenta destino", "Importe", "Nota"]], { origin: "A1" });
+    wsMov["!cols"] = [{ wch: 12 }, { wch: 13 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 26 }];
+    XLSX.utils.book_append_sheet(wb, wsMov, "Movimientos");
+
+    XLSX.writeFile(wb, `cuenta-clara-${reportType}-${isoDay(new Date())}.xlsx`);
+  };
+
+  const generateReport = () => (reportFormat === "pdf" ? exportReportPDF() : exportReportExcel());
 
   const budgets = settings.budgets || {};
   const expenseCats = categories.filter((c) => c.type === "expense");
@@ -1947,9 +2262,20 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
         <Card>
           <SectionTitle>Formato de moneda</SectionTitle>
           <p className="text-[26px] font-bold mb-3" style={{ color: C.ink, fontVariantNumeric: "tabular-nums" }}>{eur(6785)}</p>
-          <SegRow label="Moneda" value={settings.currency}
-            options={[{ value: "EUR", label: "€ Euro" }, { value: "USD", label: "$ Dólar" }]}
-            onChange={(v) => updateSettings({ currency: v })} />
+          <div className="mb-3">
+            <p className="text-[12px] font-medium mb-1.5" style={{ color: C.muted }}>Moneda</p>
+            <button onClick={() => setShowCurrencyPicker(true)}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13.5px] font-medium" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
+              <CurrencyFlag code={settings.currency} size={24} />
+              <span className="flex-1 text-left truncate">{currencyInfo(settings.currency).name} ({settings.currency})</span>
+              <ChevronDown size={16} color={C.muted} />
+            </button>
+          </div>
+          {showCurrencyPicker && (
+            <CurrencyPickerModal value={settings.currency}
+              onSelect={(v) => { updateSettings({ currency: v }); setShowCurrencyPicker(false); }}
+              onClose={() => setShowCurrencyPicker(false)} />
+          )}
           <SegRow label="Separador" value={settings.thousands}
             options={[{ value: "en", label: "1,000.00" }, { value: "es", label: "1.000,00" }]}
             onChange={(v) => updateSettings({ thousands: v })} />
@@ -2016,6 +2342,22 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
         </Card>
       </SettingsGroup>
 
+      <SettingsGroup label="Límite de gasto diario" Icn={Flame} open={!!openGroups.dailyLimit} onToggle={() => toggleGroup("dailyLimit")}>
+        <Card>
+          <SectionTitle>Aviso al superar el límite del día</SectionTitle>
+          <p className="text-[12.5px] mb-3" style={{ color: C.inkSoft }}>
+            Fija cuánto quieres gastar como máximo cada día. Si al registrar un gasto superas el límite, verás un aviso antes de guardarlo.
+          </p>
+          <div className="flex items-center gap-2">
+            <input type="number" min="0" placeholder="Sin límite" defaultValue={settings.dailyLimit || ""}
+              onBlur={(e) => updateSettings({ dailyLimit: parseFloat(e.target.value) || 0 })}
+              className="flex-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+            <CurrencyFlag code={settings.currency} size={22} />
+            <span className="text-[13px]" style={{ color: C.muted }}>{CURRENCY_SYMBOLS[FMT.currency] || "€"}</span>
+          </div>
+        </Card>
+      </SettingsGroup>
+
       <SettingsGroup label="Seguridad" Icn={Lock} open={!!openGroups.security} onToggle={() => toggleGroup("security")}>
         <SeguridadAjustes settings={settings} updateSettings={updateSettings} />
       </SettingsGroup>
@@ -2057,14 +2399,60 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
           </div>
         </Card>
         <Card>
-          <SectionTitle>Exportar resumen mensual en PDF</SectionTitle>
+          <SectionTitle>Reportes</SectionTitle>
           <p className="text-[12.5px] mb-3" style={{ color: C.inkSoft }}>
-            Genera un PDF con ingresos, gastos, balance y el gráfico de categorías de un mes concreto.
+            Genera un informe con ingresos, gastos, balance, desglose por categoría y el listado de movimientos.
           </p>
-          <input type="month" value={pdfMonth} onChange={(e) => setPdfMonth(e.target.value)}
-            className="w-full mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
-          <button onClick={exportMonthlyPDF} className="w-full py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ backgroundColor: C.ink, color: "#fff" }}>
-            <FileDown size={15} /> Exportar PDF del mes
+
+          <p className="text-[12px] font-medium mb-1.5" style={{ color: C.muted }}>Tipo de reporte</p>
+          <SegRow value={reportType}
+            options={[
+              { value: "monthly", label: "Mensual" },
+              { value: "annual", label: "Anual" },
+              { value: "range", label: "Rango" },
+              { value: "category", label: "Por categoría" },
+              { value: "account", label: "Por cuenta" },
+              { value: "full", label: "Listado completo" },
+            ]}
+            onChange={setReportType} />
+
+          {reportType === "monthly" && (
+            <input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)}
+              className="w-full mt-1 mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          )}
+          {reportType === "annual" && (
+            <input type="number" value={reportYear} onChange={(e) => setReportYear(e.target.value)} placeholder="Año"
+              className="w-full mt-1 mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          )}
+          {(reportType === "range" || reportType === "category" || reportType === "account") && (
+            <div className="flex gap-2 mt-1 mb-2">
+              <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)}
+                className="flex-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+              <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)}
+                className="flex-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+            </div>
+          )}
+          {reportType === "category" && (
+            <select value={reportCategoryId} onChange={(e) => setReportCategoryId(e.target.value)}
+              className="w-full mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }}>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          {reportType === "account" && (
+            <select value={reportAccountId} onChange={(e) => setReportAccountId(e.target.value)}
+              className="w-full mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }}>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          )}
+
+          <p className="text-[12px] font-medium mb-1.5 mt-2" style={{ color: C.muted }}>Formato</p>
+          <SegRow value={reportFormat}
+            options={[{ value: "pdf", label: "PDF" }, { value: "xlsx", label: "Excel (.xlsx)" }]}
+            onChange={setReportFormat} />
+
+          <button onClick={generateReport} className="w-full mt-2 py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ backgroundColor: C.ink, color: "#fff" }}>
+            {reportFormat === "pdf" ? <FileDown size={15} /> : <FileSpreadsheet size={15} />}
+            Generar reporte {reportFormat === "pdf" ? "PDF" : "Excel"}
           </button>
         </Card>
       </SettingsGroup>
@@ -2351,7 +2739,7 @@ export default function App() {
   const [settings, setSettings] = useState({
     decimals: 2, thousands: "es", symbolVisible: true, symbolSide: "right",
     weekStart: "monday", dateOrder: "dmy", includeTransfers: true,
-    theme: "light", fabMode: "menu", currency: "EUR",
+    theme: "light", fabMode: "menu", currency: "EUR", dailyLimit: 0,
     notifications: { ...NOTIF_DEFAULTS },
     budgets: {},
     appLock: { enabled: false, pin: null, biometric: false, credId: null },
@@ -2651,7 +3039,8 @@ export default function App() {
         </nav>
 
         <TxModal open={modal.open} onClose={closeModal} onSave={saveTx} onDelete={deleteTx}
-          accounts={accounts} categories={categories} editing={modal.editing} defaultType={modal.defaultType} />
+          accounts={accounts} categories={categories} editing={modal.editing} defaultType={modal.defaultType}
+          transactions={transactions} dailyLimit={settings.dailyLimit} />
       </div>
     </div>
   );
