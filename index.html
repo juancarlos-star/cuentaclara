@@ -20,5 +20,12 @@
   <body style="margin:0;background:#F1F6FC;">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => { /* no bloquea la app si falla */ });
+        });
+      }
+    </script>
   </body>
 </html>
