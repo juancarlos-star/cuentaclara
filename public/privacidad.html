@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Política de privacidad — Cuenta Clara</title>
+<meta name="description" content="Política de privacidad de la app Cuenta Clara" />
+<style>
+  :root {
+    --primary: #1D63D1;
+    --primary-dark: #123E82;
+    --primary-soft: #E7F0FC;
+    --ink: #132A43;
+    --ink-soft: #44586E;
+    --muted: #8BA0B6;
+    --border: #DCE7F3;
+    --bg: #F1F6FC;
+    --surface: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: conic-gradient(var(--primary) 0deg 90deg, #0EA5E9 90deg 180deg, #3B82F6 180deg 270deg, var(--primary-dark) 270deg 360deg);
+    flex-shrink: 0;
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0;
+    color: var(--ink);
+  }
+  .updated {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 32px 56px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  h2 {
+    font-size: 16px;
+    color: var(--primary-dark);
+    margin: 0 0 10px;
+  }
+  p, li {
+    font-size: 14.5px;
+    color: var(--ink-soft);
+  }
+  ul { margin: 8px 0; padding-left: 20px; }
+  .highlight {
+    background: var(--primary-soft);
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-size: 14.5px;
+    color: var(--primary-dark);
+    font-weight: 500;
+    margin-bottom: 24px;
+  }
+  a { color: var(--primary); }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12.5px;
+    margin-top: 32px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo"></div>
+      <h1>Política de privacidad de Cuenta Clara</h1>
+    </header>
+    <p class="updated">Última actualización: 12 de agosto de 2026</p>
+
+    <div class="highlight">
+      Resumen breve: Cuenta Clara no tiene servidores propios. Todos los datos que introduces
+      (movimientos, cuentas, categorías, presupuestos, planes de ahorro, etc.) se guardan
+      únicamente en tu propio dispositivo. No los enviamos, vendemos ni compartimos con nadie.
+    </div>
+
+    <div class="card">
+      <h2>1. Quién es el responsable</h2>
+      <p>
+        Cuenta Clara es una aplicación desarrollada de forma independiente por Juan Carlos
+        Calderón. Puedes contactar sobre cualquier duda de privacidad escribiendo a través del
+        formulario de contacto de <a href="https://jctecnologia.xyz">jctecnologia.xyz</a>.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>2. Qué datos recopila la app</h2>
+      <p>Cuenta Clara no recopila ni transmite tus datos a ningún servidor. La app no tiene backend propio ni analítica de terceros integrada.</p>
+      <p>Los datos que introduces voluntariamente al usar la app —movimientos de gastos e ingresos, cuentas, categorías, presupuestos, notas, planes de ahorro/inversión/préstamo— se guardan exclusivamente en el almacenamiento local de tu propio dispositivo (<em>localStorage</em> del navegador o del contenedor de la app).</p>
+      <p>Ningún dato introducido en la app sale de tu dispositivo salvo que tú mismo decidas exportarlo o compartirlo (por ejemplo, al generar un PDF o Excel, o al usar la opción "Compartir datos").</p>
+    </div>
+
+    <div class="card">
+      <h2>3. Permisos que puede solicitar la app</h2>
+      <ul>
+        <li><strong>Notificaciones:</strong> se usan únicamente para avisarte de gastos planificados próximos a vencer o de límites de gasto superados. Se generan y muestran localmente en tu dispositivo; no implican ningún envío de datos a un servidor.</li>
+        <li><strong>Huella dactilar / Face ID:</strong> si activas el bloqueo biométrico, la verificación la realiza directamente el sistema operativo de tu dispositivo (a través del estándar WebAuthn). Cuenta Clara nunca accede a tus datos biométricos ni los almacena; solo recibe una confirmación de "correcto" o "incorrecto".</li>
+      </ul>
+      <p>La app no solicita acceso a tu cámara, micrófono, contactos ni ubicación en su versión actual.</p>
+    </div>
+
+    <div class="card">
+      <h2>4. Terceros</h2>
+      <p>Cuenta Clara no comparte información con terceros, no incluye SDKs publicitarios, ni herramientas de analítica o rastreo. La única infraestructura de terceros involucrada es la propia tienda de aplicaciones (Google Play) y, si publicas la app como PWA/TWA, el navegador/sistema operativo de tu dispositivo, que pueden aplicar sus propias políticas de privacidad estándar ajenas a esta app.</p>
+    </div>
+
+    <div class="card">
+      <h2>5. Seguridad</h2>
+      <p>El PIN de bloqueo, si lo configuras, se almacena como un hash criptográfico (SHA-256 con sal aleatoria), nunca en texto plano. Toda la información permanece cifrada por las protecciones estándar del almacenamiento local de tu sistema operativo.</p>
+    </div>
+
+    <div class="card">
+      <h2>6. Cómo eliminar tus datos</h2>
+      <p>Como todos los datos están únicamente en tu dispositivo, puedes eliminarlos en cualquier momento:</p>
+      <ul>
+        <li>Desde los ajustes de la propia app, si existe una opción de borrar datos, o</li>
+        <li>Desinstalando la aplicación de tu dispositivo, o</li>
+        <li>Borrando los datos de sitio/almacenamiento de la app desde los ajustes de tu navegador o sistema operativo.</li>
+      </ul>
+      <p>No conservamos copias en ningún servidor, por lo que no existe ningún dato residual que eliminar por nuestra parte.</p>
+    </div>
+
+    <div class="card">
+      <h2>7. Menores de edad</h2>
+      <p>Cuenta Clara no está dirigida específicamente a menores de edad y no recopila conscientemente información de menores, ya que no recopila información de ningún usuario en ningún servidor.</p>
+    </div>
+
+    <div class="card">
+      <h2>8. Cambios en esta política</h2>
+      <p>Podemos actualizar esta política de privacidad si la app incorpora nuevas funciones que impliquen el tratamiento de datos (por ejemplo, sincronización en la nube opcional en el futuro). Cualquier cambio relevante se reflejará en esta misma página, indicando la fecha de la última actualización.</p>
+    </div>
+
+    <div class="card">
+      <h2>9. Contacto</h2>
+      <p>Si tienes preguntas sobre esta política de privacidad, puedes escribirnos a través de <a href="https://jctecnologia.xyz">jctecnologia.xyz</a>.</p>
+    </div>
+
+    <footer>Cuenta Clara — Política de privacidad</footer>
+  </div>
+</body>
+</html>
