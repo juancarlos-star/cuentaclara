@@ -248,27 +248,15 @@ function Icon({ name, size = 18, color = C.ink, strokeWidth = 2 }) {
   return <Cmp size={size} color={color} strokeWidth={strokeWidth} />;
 }
 
-/* Signature mark: a four-quadrant pinwheel in shades of green, echoing a
-   classic "daily expenses" app icon but restyled for Cuenta Clara. */
+/* App logo: your official Cuenta Clara icon image. */
 function LogoMark({ size = 40 }) {
-  // quadrants in visual order: top-left, top-right, bottom-left, bottom-right
-  const TL = { Icn: Wallet, bg: "#123E82", pos: { top: "24%", left: "24%" } };
-  const TR = { Icn: ArrowUpRight, bg: "#1D63D1", pos: { top: "24%", left: "76%" } };
-  const BL = { Icn: PiggyBank, bg: "#3B82F6", pos: { top: "76%", left: "24%" } };
-  const BR = { Icn: Send, bg: "#0EA5E9", pos: { top: "76%", left: "76%" } };
-  const quads = [TL, TR, BL, BR];
   return (
-    <div className="rounded-[22%] shrink-0" style={{ width: size, height: size, backgroundColor: "#fff", padding: size * 0.08, boxShadow: "0 1px 3px rgba(29,99,209,0.3)" }}>
-      <div className="relative rounded-full overflow-hidden w-full h-full"
-        style={{ background: `conic-gradient(from 0deg, ${TR.bg} 0deg 90deg, ${BR.bg} 90deg 180deg, ${BL.bg} 180deg 270deg, ${TL.bg} 270deg 360deg)` }}>
-        {quads.map((q, i) => (
-          <div key={i} className="absolute flex items-center justify-center" style={{ ...q.pos, width: size * 0.3, height: size * 0.3, transform: "translate(-50%,-50%)" }}>
-            <q.Icn size={size * 0.17} color="#fff" strokeWidth={2.5} />
-          </div>
-        ))}
-        <div className="absolute rounded-full bg-white" style={{ width: size * 0.26, height: size * 0.26, top: "50%", left: "50%", transform: "translate(-50%,-50%)" }} />
-      </div>
-    </div>
+    <img
+      src="/icon-192.png"
+      alt="Cuenta Clara"
+      className="shrink-0"
+      style={{ width: size, height: size, borderRadius: "22%", boxShadow: "0 1px 3px rgba(29,99,209,0.3)" }}
+    />
   );
 }
 
