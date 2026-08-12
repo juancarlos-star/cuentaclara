@@ -1331,6 +1331,236 @@ function ReportesPorFecha({ accounts, categories, transactions, accountFilter, s
   );
 }
 
+function ReportExport({ accounts, categories, transactions }) {
+  const [reportType, setReportType] = useState("monthly");
+  const [reportFormat, setReportFormat] = useState("pdf");
+  const [reportMonth, setReportMonth] = useState(isoDay(new Date()).slice(0, 7));
+  const [reportYear, setReportYear] = useState(String(new Date().getFullYear()));
+  const [reportStart, setReportStart] = useState(isoDay(startOfMonth(new Date())));
+  const [reportEnd, setReportEnd] = useState(isoDay(new Date()));
+  const [reportCategoryId, setReportCategoryId] = useState(categories[0]?.id || "");
+  const [reportAccountId, setReportAccountId] = useState(accounts[0]?.id || "");
+
+  const buildReportContext = () => {
+    let start, end, title, subtitle;
+    const rangeLabel = () => `${new Date(`${reportStart}T00:00:00`).toLocaleDateString("es-ES")} – ${new Date(`${reportEnd}T00:00:00`).toLocaleDateString("es-ES")}`;
+
+    if (reportType === "monthly") {
+      const [y, m] = reportMonth.split("-");
+      const yr = parseInt(y), mo = parseInt(m) - 1;
+      const anchor = new Date(yr, mo, 1);
+      start = startOfMonth(anchor); end = endOfMonth(anchor);
+      title = "Resumen mensual"; subtitle = `${MONTHS[mo]} ${yr}`;
+    } else if (reportType === "annual") {
+      const yr = parseInt(reportYear);
+      start = new Date(yr, 0, 1); end = new Date(yr, 11, 31, 23, 59, 59);
+      title = "Resumen anual"; subtitle = String(yr);
+    } else if (reportType === "range") {
+      start = new Date(`${reportStart}T00:00:00`); end = new Date(`${reportEnd}T23:59:59`);
+      title = "Rango personalizado"; subtitle = rangeLabel();
+    } else if (reportType === "category") {
+      start = new Date(`${reportStart}T00:00:00`); end = new Date(`${reportEnd}T23:59:59`);
+      const cat = categories.find((c) => c.id === reportCategoryId);
+      title = `Categoría: ${cat?.name || "—"}`; subtitle = rangeLabel();
+    } else if (reportType === "account") {
+      start = new Date(`${reportStart}T00:00:00`); end = new Date(`${reportEnd}T23:59:59`);
+      const acc = accounts.find((a) => a.id === reportAccountId);
+      title = `Cuenta: ${acc?.name || "—"}`; subtitle = rangeLabel();
+    } else {
+      start = new Date(0); end = new Date(8640000000000000);
+      title = "Listado completo"; subtitle = `${transactions.length} movimientos registrados`;
+    }
+
+    let txs = transactions.filter((t) => inRange(t, start, end));
+    if (reportType === "category") txs = txs.filter((t) => t.categoryId === reportCategoryId);
+    if (reportType === "account") txs = txs.filter((t) => t.accountId === reportAccountId || t.toAccountId === reportAccountId);
+    txs = [...txs].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const income = txs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+    const expense = txs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+    const balance = income - expense;
+    const byCat = {};
+    txs.filter((t) => t.type === "expense").forEach((t) => { byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount; });
+    const catRows = Object.entries(byCat).map(([id, amt]) => ({ cat: categories.find((c) => c.id === id), amt })).sort((a, b) => b.amt - a.amt);
+
+    return { title, subtitle, txs, income, expense, balance, catRows };
+  };
+
+  const txRow = (t) => {
+    const cat = categories.find((c) => c.id === t.categoryId);
+    const acc = accounts.find((a) => a.id === t.accountId);
+    const toAcc = accounts.find((a) => a.id === t.toAccountId);
+    return {
+      fecha: new Date(t.date).toLocaleDateString("es-ES"),
+      tipo: t.type === "income" ? "Ingreso" : t.type === "expense" ? "Gasto" : "Transferencia",
+      categoria: cat?.name || "",
+      cuenta: acc?.name || "",
+      cuentaDestino: toAcc?.name || "",
+      importe: t.amount,
+      nota: t.note || "",
+    };
+  };
+
+  const exportReportPDF = () => {
+    const ctx = buildReportContext();
+    const doc = new jsPDF();
+    doc.setFontSize(18); doc.setTextColor(29, 99, 209);
+    doc.text("Cuenta Clara", 14, 18);
+    doc.setFontSize(12); doc.setTextColor(70, 80, 95);
+    doc.text(`${ctx.title} · ${ctx.subtitle}`, 14, 26);
+    doc.setDrawColor(220, 231, 243); doc.line(14, 31, 196, 31);
+
+    doc.setFontSize(11); doc.setTextColor(20, 40, 60);
+    doc.text(`Ingresos: ${eur(ctx.income)}`, 14, 41);
+    doc.text(`Gastos: ${eur(ctx.expense)}`, 14, 48);
+    doc.setTextColor(...(ctx.balance >= 0 ? [14, 150, 90] : [210, 60, 70]));
+    doc.text(`Balance: ${eur(ctx.balance)}`, 14, 55);
+    doc.setTextColor(20, 40, 60);
+
+    let y = 68;
+    if (ctx.catRows.length > 0) {
+      doc.setFontSize(12);
+      doc.text("Gastos por categoría", 14, y);
+      y += 8;
+      const maxAmt = ctx.catRows[0]?.amt || 1;
+      ctx.catRows.forEach((r) => {
+        doc.setFontSize(10); doc.setTextColor(20, 40, 60);
+        doc.text(r.cat?.name || "Otros", 14, y);
+        doc.text(eur(r.amt), 196, y, { align: "right" });
+        const barWidth = Math.max(2, (r.amt / maxAmt) * 150);
+        const [r_, g_, b_] = hexToRgb(r.cat?.color);
+        doc.setFillColor(r_, g_, b_);
+        doc.rect(14, y + 2, barWidth, 3, "F");
+        y += 11;
+        if (y > 275) { doc.addPage(); y = 20; }
+      });
+      y += 4;
+    }
+
+    if (y > 260) { doc.addPage(); y = 20; }
+    doc.setFontSize(12); doc.setTextColor(20, 40, 60);
+    doc.text("Movimientos", 14, y);
+    y += 8;
+    doc.setFontSize(9); doc.setTextColor(139, 160, 182);
+    doc.text("Fecha", 14, y); doc.text("Tipo", 42, y); doc.text("Categoría / cuenta", 68, y); doc.text("Importe", 196, y, { align: "right" });
+    y += 5;
+    doc.setDrawColor(220, 231, 243); doc.line(14, y, 196, y);
+    y += 6;
+    if (ctx.txs.length === 0) {
+      doc.setFontSize(10); doc.setTextColor(139, 160, 182);
+      doc.text("Sin movimientos en este rango.", 14, y);
+    }
+    ctx.txs.forEach((t) => {
+      const row = txRow(t);
+      doc.setFontSize(9); doc.setTextColor(20, 40, 60);
+      doc.text(row.fecha, 14, y);
+      doc.text(row.tipo, 42, y);
+      const label = row.categoria || [row.cuenta, row.cuentaDestino].filter(Boolean).join(" → ");
+      doc.text(label.length > 34 ? label.slice(0, 34) + "…" : label, 68, y);
+      doc.setTextColor(t.type === "expense" ? 214 : t.type === "income" ? 14 : 29, t.type === "expense" ? 72 : t.type === "income" ? 150 : 99, t.type === "expense" ? 79 : t.type === "income" ? 90 : 209);
+      doc.text(`${t.type === "expense" ? "-" : t.type === "income" ? "+" : ""}${eur(row.importe)}`, 196, y, { align: "right" });
+      y += 7;
+      if (y > 285) { doc.addPage(); y = 20; }
+    });
+
+    doc.setFontSize(9); doc.setTextColor(139, 160, 182);
+    doc.text("Generado con Cuenta Clara", 14, 292);
+    doc.save(`cuenta-clara-${reportType}-${isoDay(new Date())}.pdf`);
+  };
+
+  const exportReportExcel = () => {
+    const ctx = buildReportContext();
+    const wb = XLSX.utils.book_new();
+
+    const resumenData = [
+      ["Cuenta Clara — " + ctx.title, ctx.subtitle],
+      [],
+      ["Ingresos", ctx.income],
+      ["Gastos", ctx.expense],
+      ["Balance", ctx.balance],
+      [],
+      ["Gastos por categoría"],
+      ["Categoría", "Importe"],
+      ...ctx.catRows.map((r) => [r.cat?.name || "Otros", r.amt]),
+    ];
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+    wsResumen["!cols"] = [{ wch: 28 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+
+    const movRows = ctx.txs.map(txRow);
+    const wsMov = XLSX.utils.json_to_sheet(movRows, {
+      header: ["fecha", "tipo", "categoria", "cuenta", "cuentaDestino", "importe", "nota"],
+    });
+    XLSX.utils.sheet_add_aoa(wsMov, [["Fecha", "Tipo", "Categoría", "Cuenta", "Cuenta destino", "Importe", "Nota"]], { origin: "A1" });
+    wsMov["!cols"] = [{ wch: 12 }, { wch: 13 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 26 }];
+    XLSX.utils.book_append_sheet(wb, wsMov, "Movimientos");
+
+    XLSX.writeFile(wb, `cuenta-clara-${reportType}-${isoDay(new Date())}.xlsx`);
+  };
+
+  const generateReport = () => (reportFormat === "pdf" ? exportReportPDF() : exportReportExcel());
+
+  return (
+    <Card>
+      <SectionTitle>Exportar reporte</SectionTitle>
+      <p className="text-[12.5px] mb-3" style={{ color: C.inkSoft }}>
+        Genera un informe con ingresos, gastos, balance, desglose por categoría y el listado de movimientos.
+      </p>
+
+      <p className="text-[12px] font-medium mb-1.5" style={{ color: C.muted }}>Tipo de reporte</p>
+      <SegRow value={reportType}
+        options={[
+          { value: "monthly", label: "Mensual" },
+          { value: "annual", label: "Anual" },
+          { value: "range", label: "Rango" },
+          { value: "category", label: "Por categoría" },
+          { value: "account", label: "Por cuenta" },
+          { value: "full", label: "Listado completo" },
+        ]}
+        onChange={setReportType} />
+
+      {reportType === "monthly" && (
+        <input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)}
+          className="w-full mt-1 mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+      )}
+      {reportType === "annual" && (
+        <input type="number" value={reportYear} onChange={(e) => setReportYear(e.target.value)} placeholder="Año"
+          className="w-full mt-1 mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+      )}
+      {(reportType === "range" || reportType === "category" || reportType === "account") && (
+        <div className="flex gap-2 mt-1 mb-2">
+          <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)}
+            className="flex-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)}
+            className="flex-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+        </div>
+      )}
+      {reportType === "category" && (
+        <select value={reportCategoryId} onChange={(e) => setReportCategoryId(e.target.value)}
+          className="w-full mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }}>
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      )}
+      {reportType === "account" && (
+        <select value={reportAccountId} onChange={(e) => setReportAccountId(e.target.value)}
+          className="w-full mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }}>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      )}
+
+      <p className="text-[12px] font-medium mb-1.5 mt-2" style={{ color: C.muted }}>Formato</p>
+      <SegRow value={reportFormat}
+        options={[{ value: "pdf", label: "PDF" }, { value: "xlsx", label: "Excel (.xlsx)" }]}
+        onChange={setReportFormat} />
+
+      <button onClick={generateReport} className="w-full mt-3 py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ backgroundColor: C.ink, color: "#fff" }}>
+        {reportFormat === "pdf" ? <FileDown size={15} /> : <FileSpreadsheet size={15} />}
+        Generar reporte {reportFormat === "pdf" ? "PDF" : "Excel"}
+      </button>
+    </Card>
+  );
+}
+
 function Reportes({ accounts, categories, transactions, accountFilter, setAccountFilter }) {
   const [tab, setTab] = useState("categoria");
   return (
@@ -1348,6 +1578,7 @@ function Reportes({ accounts, categories, transactions, accountFilter, setAccoun
       {tab === "categoria"
         ? <ReportesPorCategoria accounts={accounts} categories={categories} transactions={transactions} accountFilter={accountFilter} setAccountFilter={setAccountFilter} />
         : <ReportesPorFecha accounts={accounts} categories={categories} transactions={transactions} accountFilter={accountFilter} setAccountFilter={setAccountFilter} />}
+      <ReportExport accounts={accounts} categories={categories} transactions={transactions} />
     </div>
   );
 }
@@ -2063,177 +2294,6 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
     window.alert("Base de datos reiniciada.");
   };
 
-  /* -------- Reportes: varios tipos de informe, exportables a PDF o Excel -------- */
-  const [reportType, setReportType] = useState("monthly");
-  const [reportFormat, setReportFormat] = useState("pdf");
-  const [reportMonth, setReportMonth] = useState(isoDay(new Date()).slice(0, 7));
-  const [reportYear, setReportYear] = useState(String(new Date().getFullYear()));
-  const [reportStart, setReportStart] = useState(isoDay(startOfMonth(new Date())));
-  const [reportEnd, setReportEnd] = useState(isoDay(new Date()));
-  const [reportCategoryId, setReportCategoryId] = useState(categories[0]?.id || "");
-  const [reportAccountId, setReportAccountId] = useState(accounts[0]?.id || "");
-
-  // Builds a normalized { title, subtitle, txs, income, expense, balance, catRows }
-  // object for whichever report type/range is currently selected in the UI.
-  const buildReportContext = () => {
-    let start, end, title, subtitle;
-    const rangeLabel = () => `${new Date(`${reportStart}T00:00:00`).toLocaleDateString("es-ES")} – ${new Date(`${reportEnd}T00:00:00`).toLocaleDateString("es-ES")}`;
-
-    if (reportType === "monthly") {
-      const [y, m] = reportMonth.split("-");
-      const yr = parseInt(y), mo = parseInt(m) - 1;
-      const anchor = new Date(yr, mo, 1);
-      start = startOfMonth(anchor); end = endOfMonth(anchor);
-      title = "Resumen mensual"; subtitle = `${MONTHS[mo]} ${yr}`;
-    } else if (reportType === "annual") {
-      const yr = parseInt(reportYear);
-      start = new Date(yr, 0, 1); end = new Date(yr, 11, 31, 23, 59, 59);
-      title = "Resumen anual"; subtitle = String(yr);
-    } else if (reportType === "range") {
-      start = new Date(`${reportStart}T00:00:00`); end = new Date(`${reportEnd}T23:59:59`);
-      title = "Rango personalizado"; subtitle = rangeLabel();
-    } else if (reportType === "category") {
-      start = new Date(`${reportStart}T00:00:00`); end = new Date(`${reportEnd}T23:59:59`);
-      const cat = categories.find((c) => c.id === reportCategoryId);
-      title = `Categoría: ${cat?.name || "—"}`; subtitle = rangeLabel();
-    } else if (reportType === "account") {
-      start = new Date(`${reportStart}T00:00:00`); end = new Date(`${reportEnd}T23:59:59`);
-      const acc = accounts.find((a) => a.id === reportAccountId);
-      title = `Cuenta: ${acc?.name || "—"}`; subtitle = rangeLabel();
-    } else {
-      start = new Date(0); end = new Date(8640000000000000);
-      title = "Listado completo"; subtitle = `${transactions.length} movimientos registrados`;
-    }
-
-    let txs = transactions.filter((t) => inRange(t, start, end));
-    if (reportType === "category") txs = txs.filter((t) => t.categoryId === reportCategoryId);
-    if (reportType === "account") txs = txs.filter((t) => t.accountId === reportAccountId || t.toAccountId === reportAccountId);
-    txs = [...txs].sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    const income = txs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-    const expense = txs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-    const balance = income - expense;
-    const byCat = {};
-    txs.filter((t) => t.type === "expense").forEach((t) => { byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount; });
-    const catRows = Object.entries(byCat).map(([id, amt]) => ({ cat: categories.find((c) => c.id === id), amt })).sort((a, b) => b.amt - a.amt);
-
-    return { title, subtitle, txs, income, expense, balance, catRows };
-  };
-
-  const txRow = (t) => {
-    const cat = categories.find((c) => c.id === t.categoryId);
-    const acc = accounts.find((a) => a.id === t.accountId);
-    const toAcc = accounts.find((a) => a.id === t.toAccountId);
-    return {
-      fecha: new Date(t.date).toLocaleDateString("es-ES"),
-      tipo: t.type === "income" ? "Ingreso" : t.type === "expense" ? "Gasto" : "Transferencia",
-      categoria: cat?.name || "",
-      cuenta: acc?.name || "",
-      cuentaDestino: toAcc?.name || "",
-      importe: t.amount,
-      nota: t.note || "",
-    };
-  };
-
-  const exportReportPDF = () => {
-    const ctx = buildReportContext();
-    const doc = new jsPDF();
-    doc.setFontSize(18); doc.setTextColor(29, 99, 209);
-    doc.text("Cuenta Clara", 14, 18);
-    doc.setFontSize(12); doc.setTextColor(70, 80, 95);
-    doc.text(`${ctx.title} · ${ctx.subtitle}`, 14, 26);
-    doc.setDrawColor(220, 231, 243); doc.line(14, 31, 196, 31);
-
-    doc.setFontSize(11); doc.setTextColor(20, 40, 60);
-    doc.text(`Ingresos: ${eur(ctx.income)}`, 14, 41);
-    doc.text(`Gastos: ${eur(ctx.expense)}`, 14, 48);
-    doc.setTextColor(...(ctx.balance >= 0 ? [14, 150, 90] : [210, 60, 70]));
-    doc.text(`Balance: ${eur(ctx.balance)}`, 14, 55);
-    doc.setTextColor(20, 40, 60);
-
-    let y = 68;
-    if (ctx.catRows.length > 0) {
-      doc.setFontSize(12);
-      doc.text("Gastos por categoría", 14, y);
-      y += 8;
-      const maxAmt = ctx.catRows[0]?.amt || 1;
-      ctx.catRows.forEach((r) => {
-        doc.setFontSize(10); doc.setTextColor(20, 40, 60);
-        doc.text(r.cat?.name || "Otros", 14, y);
-        doc.text(eur(r.amt), 196, y, { align: "right" });
-        const barWidth = Math.max(2, (r.amt / maxAmt) * 150);
-        const [r_, g_, b_] = hexToRgb(r.cat?.color);
-        doc.setFillColor(r_, g_, b_);
-        doc.rect(14, y + 2, barWidth, 3, "F");
-        y += 11;
-        if (y > 275) { doc.addPage(); y = 20; }
-      });
-      y += 4;
-    }
-
-    if (y > 260) { doc.addPage(); y = 20; }
-    doc.setFontSize(12); doc.setTextColor(20, 40, 60);
-    doc.text("Movimientos", 14, y);
-    y += 8;
-    doc.setFontSize(9); doc.setTextColor(139, 160, 182);
-    doc.text("Fecha", 14, y); doc.text("Tipo", 42, y); doc.text("Categoría / cuenta", 68, y); doc.text("Importe", 196, y, { align: "right" });
-    y += 5;
-    doc.setDrawColor(220, 231, 243); doc.line(14, y, 196, y);
-    y += 6;
-    if (ctx.txs.length === 0) {
-      doc.setFontSize(10); doc.setTextColor(139, 160, 182);
-      doc.text("Sin movimientos en este rango.", 14, y);
-    }
-    ctx.txs.forEach((t) => {
-      const row = txRow(t);
-      doc.setFontSize(9); doc.setTextColor(20, 40, 60);
-      doc.text(row.fecha, 14, y);
-      doc.text(row.tipo, 42, y);
-      const label = row.categoria || [row.cuenta, row.cuentaDestino].filter(Boolean).join(" → ");
-      doc.text(label.length > 34 ? label.slice(0, 34) + "…" : label, 68, y);
-      doc.setTextColor(t.type === "expense" ? 214 : t.type === "income" ? 14 : 29, t.type === "expense" ? 72 : t.type === "income" ? 150 : 99, t.type === "expense" ? 79 : t.type === "income" ? 90 : 209);
-      doc.text(`${t.type === "expense" ? "-" : t.type === "income" ? "+" : ""}${eur(row.importe)}`, 196, y, { align: "right" });
-      y += 7;
-      if (y > 285) { doc.addPage(); y = 20; }
-    });
-
-    doc.setFontSize(9); doc.setTextColor(139, 160, 182);
-    doc.text("Generado con Cuenta Clara", 14, 292);
-    doc.save(`cuenta-clara-${reportType}-${isoDay(new Date())}.pdf`);
-  };
-
-  const exportReportExcel = () => {
-    const ctx = buildReportContext();
-    const wb = XLSX.utils.book_new();
-
-    const resumenData = [
-      ["Cuenta Clara — " + ctx.title, ctx.subtitle],
-      [],
-      ["Ingresos", ctx.income],
-      ["Gastos", ctx.expense],
-      ["Balance", ctx.balance],
-      [],
-      ["Gastos por categoría"],
-      ["Categoría", "Importe"],
-      ...ctx.catRows.map((r) => [r.cat?.name || "Otros", r.amt]),
-    ];
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
-    wsResumen["!cols"] = [{ wch: 28 }, { wch: 16 }];
-    XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
-
-    const movRows = ctx.txs.map(txRow);
-    const wsMov = XLSX.utils.json_to_sheet(movRows, {
-      header: ["fecha", "tipo", "categoria", "cuenta", "cuentaDestino", "importe", "nota"],
-    });
-    XLSX.utils.sheet_add_aoa(wsMov, [["Fecha", "Tipo", "Categoría", "Cuenta", "Cuenta destino", "Importe", "Nota"]], { origin: "A1" });
-    wsMov["!cols"] = [{ wch: 12 }, { wch: 13 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 26 }];
-    XLSX.utils.book_append_sheet(wb, wsMov, "Movimientos");
-
-    XLSX.writeFile(wb, `cuenta-clara-${reportType}-${isoDay(new Date())}.xlsx`);
-  };
-
-  const generateReport = () => (reportFormat === "pdf" ? exportReportPDF() : exportReportExcel());
-
   const budgets = settings.budgets || {};
   const expenseCats = categories.filter((c) => c.type === "expense");
   const setBudget = (catId, value) => {
@@ -2397,63 +2457,6 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
               Resetear base de datos
             </button>
           </div>
-        </Card>
-        <Card>
-          <SectionTitle>Reportes</SectionTitle>
-          <p className="text-[12.5px] mb-3" style={{ color: C.inkSoft }}>
-            Genera un informe con ingresos, gastos, balance, desglose por categoría y el listado de movimientos.
-          </p>
-
-          <p className="text-[12px] font-medium mb-1.5" style={{ color: C.muted }}>Tipo de reporte</p>
-          <SegRow value={reportType}
-            options={[
-              { value: "monthly", label: "Mensual" },
-              { value: "annual", label: "Anual" },
-              { value: "range", label: "Rango" },
-              { value: "category", label: "Por categoría" },
-              { value: "account", label: "Por cuenta" },
-              { value: "full", label: "Listado completo" },
-            ]}
-            onChange={setReportType} />
-
-          {reportType === "monthly" && (
-            <input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)}
-              className="w-full mt-1 mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
-          )}
-          {reportType === "annual" && (
-            <input type="number" value={reportYear} onChange={(e) => setReportYear(e.target.value)} placeholder="Año"
-              className="w-full mt-1 mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
-          )}
-          {(reportType === "range" || reportType === "category" || reportType === "account") && (
-            <div className="flex gap-2 mt-1 mb-2">
-              <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)}
-                className="flex-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
-              <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)}
-                className="flex-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
-            </div>
-          )}
-          {reportType === "category" && (
-            <select value={reportCategoryId} onChange={(e) => setReportCategoryId(e.target.value)}
-              className="w-full mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }}>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          )}
-          {reportType === "account" && (
-            <select value={reportAccountId} onChange={(e) => setReportAccountId(e.target.value)}
-              className="w-full mb-2 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }}>
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          )}
-
-          <p className="text-[12px] font-medium mb-1.5 mt-2" style={{ color: C.muted }}>Formato</p>
-          <SegRow value={reportFormat}
-            options={[{ value: "pdf", label: "PDF" }, { value: "xlsx", label: "Excel (.xlsx)" }]}
-            onChange={setReportFormat} />
-
-          <button onClick={generateReport} className="w-full mt-2 py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ backgroundColor: C.ink, color: "#fff" }}>
-            {reportFormat === "pdf" ? <FileDown size={15} /> : <FileSpreadsheet size={15} />}
-            Generar reporte {reportFormat === "pdf" ? "PDF" : "Excel"}
-          </button>
         </Card>
       </SettingsGroup>
     </div>
