@@ -1719,7 +1719,199 @@ function TasaAhorro({ transactions }) {
   );
 }
 
-function Ahorro({ sim, setSim, transactions, goals, setGoals }) {
+function PlanInversion({ plan, setPlan }) {
+  const { initial, monthly, rate, months } = plan;
+  const upd = (k, v) => setPlan({ ...plan, [k]: v });
+
+  const result = useMemo(() => {
+    const r = (parseFloat(rate) || 0) / 100 / 12;
+    let bal = parseFloat(initial) || 0;
+    const m = parseFloat(monthly) || 0;
+    const n = Math.max(1, Math.min(parseInt(months) || 12, 600));
+    const data = [{ mes: 0, saldo: bal }];
+    for (let i = 1; i <= n; i++) {
+      bal = bal * (1 + r) + m;
+      data.push({ mes: i, saldo: bal });
+    }
+    const finalBal = data[data.length - 1].saldo;
+    const totalInvertido = (parseFloat(initial) || 0) + m * n;
+    const rendimiento = finalBal - totalInvertido;
+    return { data, finalBal, totalInvertido, rendimiento };
+  }, [initial, monthly, rate, months]);
+
+  return (
+    <div className="space-y-4 pb-4">
+      <Card style={{ backgroundColor: C.ink }}>
+        <div className="flex items-center gap-2 mb-1">
+          <TrendUpIcn size={18} color={C.emerald} />
+          <span className="text-[13px] font-semibold" style={{ color: "#fff" }}>Plan de inversión</span>
+        </div>
+        <p className="text-[12px]" style={{ color: "#AFC0D6" }}>Proyecta cómo puede crecer tu dinero con aportes e interés compuesto. Es una estimación, no garantiza rentabilidad real.</p>
+      </Card>
+
+      <Card>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[12px] font-medium" style={{ color: C.muted }}>Aporte inicial</label>
+            <input type="number" value={initial} onChange={(e) => upd("initial", e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          </div>
+          <div>
+            <label className="text-[12px] font-medium" style={{ color: C.muted }}>Aporte mensual</label>
+            <input type="number" value={monthly} onChange={(e) => upd("monthly", e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          </div>
+          <div>
+            <label className="text-[12px] font-medium" style={{ color: C.muted }}>Rentabilidad anual estimada (%)</label>
+            <input type="number" value={rate} onChange={(e) => upd("rate", e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          </div>
+          <div>
+            <label className="text-[12px] font-medium" style={{ color: C.muted }}>Plazo (meses)</label>
+            <input type="number" value={months} onChange={(e) => upd("months", e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <div style={{ height: 180 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={result.data}>
+              <defs>
+                <linearGradient id="invGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.emerald} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={C.emerald} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#EEF1F5" vertical={false} />
+              <XAxis dataKey="mes" tick={{ fontSize: 10, fill: C.muted }} axisLine={false} tickLine={false} label={{ value: "meses", position: "insideBottom", offset: -2, fontSize: 10, fill: C.muted }} />
+              <YAxis tick={{ fontSize: 10, fill: C.muted }} axisLine={false} tickLine={false} width={40} />
+              <Tooltip formatter={(v) => eur(v)} labelFormatter={(l) => `Mes ${l}`} />
+              <Area type="monotone" dataKey="saldo" stroke={C.emerald} strokeWidth={2.5} fill="url(#invGrad)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+          <div>
+            <p className="text-[11px]" style={{ color: C.muted }}>Invertido</p>
+            <p className="text-[13px] font-bold" style={{ color: C.ink }}>{eur(result.totalInvertido)}</p>
+          </div>
+          <div>
+            <p className="text-[11px]" style={{ color: C.muted }}>Rendimiento</p>
+            <p className="text-[13px] font-bold" style={{ color: C.emerald }}>{eur(result.rendimiento)}</p>
+          </div>
+          <div>
+            <p className="text-[11px]" style={{ color: C.muted }}>Valor final</p>
+            <p className="text-[13px] font-bold" style={{ color: C.ink }}>{eur(result.finalBal)}</p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function PlanPrestamo({ plan, setPlan }) {
+  const { amount, rate, months } = plan;
+  const upd = (k, v) => setPlan({ ...plan, [k]: v });
+
+  const result = useMemo(() => {
+    const p = parseFloat(amount) || 0;
+    const n = Math.max(1, Math.min(parseInt(months) || 1, 600));
+    const r = (parseFloat(rate) || 0) / 100 / 12;
+    const cuota = r > 0 ? (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1) : p / n;
+    const data = [];
+    let saldo = p;
+    for (let i = 0; i <= n; i++) {
+      data.push({ mes: i, saldo: Math.max(0, saldo) });
+      const interesMes = saldo * r;
+      const capitalMes = cuota - interesMes;
+      saldo -= capitalMes;
+    }
+    const totalPagado = cuota * n;
+    const totalIntereses = totalPagado - p;
+    return { data, cuota, totalPagado, totalIntereses };
+  }, [amount, rate, months]);
+
+  return (
+    <div className="space-y-4 pb-4">
+      <Card style={{ backgroundColor: C.ink }}>
+        <div className="flex items-center gap-2 mb-1">
+          <Landmark size={18} color="#E08E45" />
+          <span className="text-[13px] font-semibold" style={{ color: "#fff" }}>Plan de préstamo</span>
+        </div>
+        <p className="text-[12px]" style={{ color: "#AFC0D6" }}>Calcula la cuota mensual y el coste total de un préstamo antes de pedirlo.</p>
+      </Card>
+
+      <Card>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="text-[12px] font-medium" style={{ color: C.muted }}>Importe del préstamo</label>
+            <input type="number" value={amount} onChange={(e) => upd("amount", e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          </div>
+          <div>
+            <label className="text-[12px] font-medium" style={{ color: C.muted }}>Interés anual (TIN, %)</label>
+            <input type="number" value={rate} onChange={(e) => upd("rate", e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          </div>
+          <div>
+            <label className="text-[12px] font-medium" style={{ color: C.muted }}>Plazo (meses)</label>
+            <input type="number" value={months} onChange={(e) => upd("months", e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }} />
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <p className="text-[13.5px] mb-2" style={{ color: C.inkSoft }}>
+          Cuota mensual estimada: <span className="font-bold" style={{ color: C.ink }}>{eur(result.cuota)}</span>
+        </p>
+        <div style={{ height: 160 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={result.data}>
+              <defs>
+                <linearGradient id="loanGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#E08E45" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#E08E45" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#EEF1F5" vertical={false} />
+              <XAxis dataKey="mes" tick={{ fontSize: 10, fill: C.muted }} axisLine={false} tickLine={false} label={{ value: "meses", position: "insideBottom", offset: -2, fontSize: 10, fill: C.muted }} />
+              <YAxis tick={{ fontSize: 10, fill: C.muted }} axisLine={false} tickLine={false} width={40} />
+              <Tooltip formatter={(v) => eur(v)} labelFormatter={(l) => `Mes ${l}`} />
+              <Area type="monotone" dataKey="saldo" stroke="#E08E45" strokeWidth={2.5} fill="url(#loanGrad)" name="Saldo pendiente" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+          <div>
+            <p className="text-[11px]" style={{ color: C.muted }}>Total a pagar</p>
+            <p className="text-[13px] font-bold" style={{ color: C.ink }}>{eur(result.totalPagado)}</p>
+          </div>
+          <div>
+            <p className="text-[11px]" style={{ color: C.muted }}>Total en intereses</p>
+            <p className="text-[13px] font-bold" style={{ color: C.rose }}>{eur(result.totalIntereses)}</p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function Ahorro({ sim, setSim, transactions, goals, setGoals, investPlan, setInvestPlan, loanPlan, setLoanPlan }) {
+  const [planTab, setPlanTab] = useState("ahorro");
+  return (
+    <div className="space-y-3 pb-4">
+      <div className="flex gap-2 p-1 rounded-xl" style={{ backgroundColor: "#EFF2F6" }}>
+        <button onClick={() => setPlanTab("ahorro")} className="flex-1 py-2 rounded-lg text-[12.5px] font-semibold"
+          style={{ backgroundColor: planTab === "ahorro" ? "#fff" : "transparent", color: C.ink, boxShadow: planTab === "ahorro" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>Ahorro</button>
+        <button onClick={() => setPlanTab("inversion")} className="flex-1 py-2 rounded-lg text-[12.5px] font-semibold"
+          style={{ backgroundColor: planTab === "inversion" ? "#fff" : "transparent", color: C.ink, boxShadow: planTab === "inversion" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>Inversión</button>
+        <button onClick={() => setPlanTab("prestamo")} className="flex-1 py-2 rounded-lg text-[12.5px] font-semibold"
+          style={{ backgroundColor: planTab === "prestamo" ? "#fff" : "transparent", color: C.ink, boxShadow: planTab === "prestamo" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>Préstamo</button>
+      </div>
+      {planTab === "inversion" ? <PlanInversion plan={investPlan} setPlan={setInvestPlan} />
+        : planTab === "prestamo" ? <PlanPrestamo plan={loanPlan} setPlan={setLoanPlan} />
+        : <AhorroSimulador sim={sim} setSim={setSim} transactions={transactions} goals={goals} setGoals={setGoals} />}
+    </div>
+  );
+}
+
+function AhorroSimulador({ sim, setSim, transactions, goals, setGoals }) {
   const { initial, monthly, rate, mode, goal, months } = sim;
 
   const result = useMemo(() => {
@@ -2865,6 +3057,8 @@ export default function App() {
   const [sim, setSim] = useState({ initial: "0", monthly: "100", rate: "0", mode: "goal", goal: "1000", months: "12" });
   const [goals, setGoals] = useState([]);
   const [plannedExpenses, setPlannedExpenses] = useState([]);
+  const [investPlan, setInvestPlan] = useState({ initial: "0", monthly: "100", rate: "6", months: "60" });
+  const [loanPlan, setLoanPlan] = useState({ amount: "10000", rate: "12", months: "36" });
   const [settings, setSettings] = useState({
     decimals: 2, thousands: "es", symbolVisible: true, symbolSide: "right",
     weekStart: "monday", dateOrder: "dmy", includeTransfers: true,
@@ -2920,6 +3114,14 @@ export default function App() {
         const pe = await window.storage.get("planned-expenses");
         setPlannedExpenses(JSON.parse(pe.value));
       } catch { /* keep defaults */ }
+      try {
+        const ip = await window.storage.get("invest-plan");
+        setInvestPlan((prev) => ({ ...prev, ...JSON.parse(ip.value) }));
+      } catch { /* keep defaults */ }
+      try {
+        const lp = await window.storage.get("loan-plan");
+        setLoanPlan((prev) => ({ ...prev, ...JSON.parse(lp.value) }));
+      } catch { /* keep defaults */ }
       let loadedSettings = null;
       try {
         const st = await window.storage.get("settings");
@@ -2963,6 +3165,8 @@ export default function App() {
   useEffect(() => { if (!loading) safeSet("savings-sim", sim); }, [sim, loading]);
   useEffect(() => { if (!loading) safeSet("savings-goals", goals); }, [goals, loading]);
   useEffect(() => { if (!loading) safeSet("planned-expenses", plannedExpenses); }, [plannedExpenses, loading]);
+  useEffect(() => { if (!loading) safeSet("invest-plan", investPlan); }, [investPlan, loading]);
+  useEffect(() => { if (!loading) safeSet("loan-plan", loanPlan); }, [loanPlan, loading]);
   useEffect(() => { if (!loading) safeSet("settings", settings); }, [settings, loading]);
   useEffect(() => { if (!loading) safeSet("dash-account-filter", accountFilter); }, [accountFilter, loading]);
   useEffect(() => {
@@ -3117,7 +3321,8 @@ export default function App() {
             <Reportes accounts={accounts} categories={categories} transactions={transactions}
               accountFilter={accountFilter} setAccountFilter={setAccountFilter} />
           )}
-          {tab === "ahorro" && <Ahorro sim={sim} setSim={setSim} transactions={transactions} goals={goals} setGoals={setGoals} />}
+          {tab === "ahorro" && <Ahorro sim={sim} setSim={setSim} transactions={transactions} goals={goals} setGoals={setGoals}
+            investPlan={investPlan} setInvestPlan={setInvestPlan} loanPlan={loanPlan} setLoanPlan={setLoanPlan} />}
           {tab === "mas" && (
             <Mas accounts={accounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories}
               transactions={transactions} setTransactions={setTransactions} settings={settings} updateSettings={updateSettings}
