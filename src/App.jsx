@@ -29,6 +29,43 @@ import {
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
 
+/* --------------------------------------------------------------------------
+ * Persistencia real fuera de Claude.ai
+ * --------------------------------------------------------------------------
+ * Esta app se empezó a construir con la API window.storage de los
+ * "artifacts" de Claude, que SOLO existe dentro de claude.ai. Publicada en
+ * un dominio propio (cuentaclara.jctecnologia.xyz), esa función no existe
+ * y nada se guardaría de verdad. Este bloque implementa la misma interfaz
+ * (get/set/delete/list) apoyada en localStorage, que sí es una API real
+ * y persistente del navegador, así que el resto del código no necesita
+ * cambiar ninguna otra línea.
+ * ------------------------------------------------------------------------ */
+if (typeof window !== "undefined" && !window.storage) {
+  const STORAGE_PREFIX = "cuentaclara:";
+  window.storage = {
+    async get(key) {
+      const raw = localStorage.getItem(STORAGE_PREFIX + key);
+      if (raw === null) throw new Error(`storage: "${key}" no existe`);
+      return { key, value: raw, shared: false };
+    },
+    async set(key, value) {
+      localStorage.setItem(STORAGE_PREFIX + key, value);
+      return { key, value, shared: false };
+    },
+    async delete(key) {
+      const existed = localStorage.getItem(STORAGE_PREFIX + key) !== null;
+      localStorage.removeItem(STORAGE_PREFIX + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix = "") {
+      const keys = Object.keys(localStorage)
+        .filter((k) => k.startsWith(STORAGE_PREFIX + prefix))
+        .map((k) => k.slice(STORAGE_PREFIX.length));
+      return { keys, prefix, shared: false };
+    },
+  };
+}
+
 /* ---------------------------------- tokens ---------------------------------- */
 
 const LIGHT = {
@@ -2449,9 +2486,19 @@ async function verifyBiometric(credId) {
     return !!assertion;
   } catch { return false; }
 }
-// Ofuscación ligera del PIN (no es un hash criptográfico real: esta app no
-// tiene backend, así que solo evita guardarlo en texto plano en el storage).
-function obfuscatePin(pin) { return btoa(`cc-${pin}-lock`); }
+// Hash real del PIN (SHA-256 vía Web Crypto API, integrada en el navegador)
+// con una sal aleatoria por instalación. A diferencia de btoa(), esto NO es
+// reversible: leer el storage directamente solo muestra el hash, nunca el
+// PIN. La verificación se hace re-calculando el hash del intento y
+// comparándolo con el guardado.
+async function hashPin(pin, salt) {
+  const enc = new TextEncoder().encode(`${salt}:${pin}`);
+  const digest = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function randomSalt() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16))).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 function SeguridadAjustes({ settings, updateSettings }) {
   const appLock = settings.appLock || { enabled: false, pin: null, biometric: false };
@@ -2464,15 +2511,17 @@ function SeguridadAjustes({ settings, updateSettings }) {
   useEffect(() => { biometricAvailable().then(setBioSupported); }, []);
 
   const startPinSetup = () => { setSettingPin(true); setPin1(""); setPin2(""); setPinError(""); };
-  const confirmPin = () => {
+  const confirmPin = async () => {
     if (pin1.length < 4) { setPinError("El PIN debe tener al menos 4 dígitos."); return; }
     if (pin1 !== pin2) { setPinError("Los PIN no coinciden."); return; }
-    updateSettings({ appLock: { ...appLock, enabled: true, pin: obfuscatePin(pin1) } });
+    const salt = randomSalt();
+    const hash = await hashPin(pin1, salt);
+    updateSettings({ appLock: { ...appLock, enabled: true, pin: hash, pinSalt: salt } });
     setSettingPin(false);
   };
   const disableLock = () => {
     if (!window.confirm("¿Desactivar el bloqueo de la app?")) return;
-    updateSettings({ appLock: { enabled: false, pin: null, biometric: false, credId: null } });
+    updateSettings({ appLock: { enabled: false, pin: null, pinSalt: null, biometric: false, credId: null } });
   };
   const toggleBiometric = async (v) => {
     if (!v) { updateSettings({ appLock: { ...appLock, biometric: false, credId: null } }); return; }
@@ -2967,13 +3016,14 @@ function LockScreen({ appLock, onUnlock }) {
 
   useEffect(() => { if (appLock.biometric && appLock.credId) tryBiometric(); }, []); // eslint-disable-line
 
-  const press = (d) => {
+  const press = async (d) => {
     setError(false);
     const next = (entry + d).slice(0, 6);
     setEntry(next);
     if (next.length >= 4) {
       const stored = appLock.pin;
-      if (obfuscatePin(next) === stored) { onUnlock(); }
+      const hash = await hashPin(next, appLock.pinSalt || "");
+      if (hash === stored) { onUnlock(); }
       else if (next.length === 6) { setError(true); setTimeout(() => setEntry(""), 400); }
     }
   };
@@ -3053,7 +3103,7 @@ export default function App() {
     theme: "light", fabMode: "menu", currency: "EUR", dailyLimit: 0,
     notifications: { ...NOTIF_DEFAULTS },
     budgets: {},
-    appLock: { enabled: false, pin: null, biometric: false, credId: null },
+    appLock: { enabled: false, pin: null, pinSalt: null, biometric: false, credId: null },
   });
   const [unlocked, setUnlocked] = useState(false);
 
@@ -3117,7 +3167,7 @@ export default function App() {
         if (loaded.fabMode === "oculto") loaded.fabMode = "menu";
         loaded.notifications = { ...NOTIF_DEFAULTS, ...loaded.notifications };
         loaded.budgets = loaded.budgets || {};
-        loaded.appLock = { enabled: false, pin: null, biometric: false, credId: null, ...loaded.appLock };
+        loaded.appLock = { enabled: false, pin: null, pinSalt: null, biometric: false, credId: null, ...loaded.appLock };
         loadedSettings = loaded;
         setSettings(loaded);
         applyTheme(loaded.theme === "dark");
