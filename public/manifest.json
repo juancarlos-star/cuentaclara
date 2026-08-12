@@ -1,8 +1,12 @@
 {
+  "id": "/",
   "name": "Cuenta Clara",
   "short_name": "Cuenta Clara",
   "description": "Finanzas personales claras: gastos, ingresos, transferencias, presupuestos y ahorro.",
   "start_url": "/",
+  "scope": "/",
+  "lang": "es",
+  "dir": "ltr",
   "display": "standalone",
   "background_color": "#F1F6FC",
   "theme_color": "#1D63D1",
