@@ -1524,7 +1524,14 @@ function ReportExport({ accounts, categories, transactions }) {
 
     doc.setFontSize(9); doc.setTextColor(139, 160, 182);
     doc.text("Generado con Cuenta Clara", 14, 292);
-    doc.save(`cuenta-clara-${reportType}-${isoDay(new Date())}.pdf`);
+
+    const filename = `cuenta-clara-${reportType}-${isoDay(new Date())}.pdf`;
+    // Abre el PDF directamente en una pestaña nueva (el visor del navegador),
+    // así no hay que ir a buscarlo a la carpeta de Descargas. Si el navegador
+    // bloquea la ventana emergente, se recurre a la descarga de siempre.
+    const blobUrl = doc.output("bloburl");
+    const win = window.open(blobUrl, "_blank");
+    if (!win) doc.save(filename);
   };
 
   const exportReportExcel = () => {
