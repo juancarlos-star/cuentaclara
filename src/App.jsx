@@ -450,7 +450,7 @@ function sumByType(transactions, type, start, end, categoryId) {
     .reduce((s, t) => s + t.amount, 0);
 }
 
-function computeInsights(accounts, categories, transactions, now = new Date(), budgets = {}, goals = []) {
+function computeInsights(accounts, categories, transactions, now = new Date(), budgets = {}, goals = [], plannedExpenses = []) {
   const insights = [];
   const salaryCat = categories.find((c) => c.type === "income" && /salari|sueldo|nómina|nomina/i.test(c.name));
 
@@ -601,7 +601,41 @@ function computeInsights(accounts, categories, transactions, now = new Date(), b
     }
   });
 
+  // Gastos planificados: avisa cuando el pago está a 3 días o menos,
+  // salvo que ya exista un gasto parecido registrado ese mes en la misma categoría.
+  (plannedExpenses || []).filter((pe) => pe.active !== false).forEach((pe) => {
+    const due = nextPlannedDueDate(pe.dueDay, now);
+    const daysUntil = Math.round((startOfDay(due) - startOfDay(now)) / 86400000);
+    if (daysUntil < 0 || daysUntil > 3) return;
+    const cat = categories.find((c) => c.id === pe.categoryId);
+    const dueMonthStart = startOfMonth(due), dueMonthEnd = endOfMonth(due);
+    const alreadyPaid = transactions.some((t) =>
+      t.type === "expense" && t.categoryId === pe.categoryId && inRange(t, dueMonthStart, dueMonthEnd) &&
+      t.amount >= pe.amount * 0.9 && t.amount <= pe.amount * 1.1);
+    if (alreadyPaid) return;
+    insights.push({
+      id: `planned-${pe.id}-${due.getFullYear()}-${due.getMonth()}`,
+      kind: "plannedExpense", level: daysUntil === 0 ? "warn" : "info",
+      Icn: CalendarDays, color: daysUntil === 0 ? C.rose : C.blue,
+      title: daysUntil === 0 ? `Hoy vence "${pe.name}"` : `"${pe.name}" vence en ${daysUntil} día${daysUntil === 1 ? "" : "s"}`,
+      message: `Pago planificado de ${eur(pe.amount)}${cat ? ` · ${cat.name}` : ""}.`,
+    });
+  });
+
   return insights;
+}
+
+// Próxima fecha en la que vence un gasto planificado (día fijo de cada mes,
+// ajustado si ese mes tiene menos días, p.ej. día 31 en febrero → 28/29).
+function nextPlannedDueDate(dueDay, now) {
+  const clampedDay = (y, m) => Math.min(dueDay, new Date(y, m + 1, 0).getDate());
+  let y = now.getFullYear(), m = now.getMonth();
+  let due = new Date(y, m, clampedDay(y, m));
+  if (due < startOfDay(now)) {
+    m += 1; if (m > 11) { m = 0; y += 1; }
+    due = new Date(y, m, clampedDay(y, m));
+  }
+  return due;
 }
 
 /* ---------------------------------- add/edit transaction modal ---------------------------------- */
@@ -1858,11 +1892,55 @@ function CategoriaForm({ onSave, onCancel, editing, type }) {
   );
 }
 
-function Mas({ accounts, setAccounts, categories, setCategories, transactions, setTransactions, settings, updateSettings, openNotifications }) {
+function PlanificadoForm({ onSave, onCancel, editing, accounts, categories }) {
+  const expenseCats = categories.filter((c) => c.type === "expense");
+  const [name, setName] = useState(editing?.name || "");
+  const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
+  const [categoryId, setCategoryId] = useState(editing?.categoryId || expenseCats[0]?.id || "");
+  const [accountId, setAccountId] = useState(editing?.accountId || accounts[0]?.id || "");
+  const [dueDay, setDueDay] = useState(editing ? String(editing.dueDay) : "1");
+  const [note, setNote] = useState(editing?.note || "");
+  return (
+    <Card className="mb-3">
+      <input placeholder='Nombre (ej. "Alquiler", "Netflix")' value={name} onChange={(e) => setName(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-xl text-[14px] mb-2" style={{ border: `1px solid ${C.border}` }} />
+      <input type="number" placeholder="Importe" value={amount} onChange={(e) => setAmount(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-xl text-[14px] mb-2" style={{ border: `1px solid ${C.border}` }} />
+      <div className="flex gap-2 mb-2">
+        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}
+          className="flex-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }}>
+          {expenseCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select value={accountId} onChange={(e) => setAccountId(e.target.value)}
+          className="flex-1 px-3 py-2.5 rounded-xl text-[14px]" style={{ border: `1px solid ${C.border}` }}>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      </div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[13px]" style={{ color: C.muted }}>Vence el día</span>
+        <input type="number" min="1" max="31" value={dueDay} onChange={(e) => setDueDay(e.target.value)}
+          className="w-20 px-3 py-2.5 rounded-xl text-[14px] text-center" style={{ border: `1px solid ${C.border}` }} />
+        <span className="text-[13px]" style={{ color: C.muted }}>de cada mes</span>
+      </div>
+      <input placeholder="Nota (opcional)" value={note} onChange={(e) => setNote(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-xl text-[14px] mb-3" style={{ border: `1px solid ${C.border}` }} />
+      <div className="flex gap-2">
+        <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-[13.5px] font-semibold" style={{ backgroundColor: "#F1F3F6", color: C.inkSoft }}>Cancelar</button>
+        <button onClick={() => name && parseFloat(amount) > 0 && categoryId && accountId && onSave({
+          id: editing?.id || uid(), name, amount: parseFloat(amount), categoryId, accountId,
+          dueDay: Math.min(31, Math.max(1, parseInt(dueDay) || 1)), note, active: editing?.active !== false,
+        })} className="flex-1 py-2.5 rounded-xl text-[13.5px] font-semibold" style={{ backgroundColor: C.ink, color: "#fff" }}>Guardar</button>
+      </div>
+    </Card>
+  );
+}
+
+function Mas({ accounts, setAccounts, categories, setCategories, transactions, setTransactions, settings, updateSettings, plannedExpenses, setPlannedExpenses, openNotifications }) {
   const [section, setSection] = useState("cuentas");
   const [editingAcc, setEditingAcc] = useState(undefined);
   const [editingCat, setEditingCat] = useState(undefined);
   const [catType, setCatType] = useState("expense");
+  const [editingPlan, setEditingPlan] = useState(undefined);
 
   const saveAccount = (acc) => {
     setAccounts((prev) => editingAcc ? prev.map((a) => a.id === acc.id ? acc : a) : [...prev, acc]);
@@ -1881,12 +1959,21 @@ function Mas({ accounts, setAccounts, categories, setCategories, transactions, s
     if (!window.confirm("¿Eliminar esta categoría?")) return;
     setCategories((prev) => prev.filter((c) => c.id !== id));
   };
+  const savePlan = (plan) => {
+    setPlannedExpenses((prev) => editingPlan ? prev.map((p) => p.id === plan.id ? plan : p) : [...prev, plan]);
+    setEditingPlan(undefined);
+  };
+  const deletePlan = (id) => {
+    if (!window.confirm("¿Eliminar este gasto planificado?")) return;
+    setPlannedExpenses((prev) => prev.filter((p) => p.id !== id));
+  };
 
   return (
     <div className="space-y-3 pb-4">
       <div className="flex gap-2 p-1 rounded-xl" style={{ backgroundColor: C.surfaceAlt }}>
         <button onClick={() => setSection("cuentas")} className="flex-1 py-2 rounded-lg text-[12.5px] font-semibold" style={{ backgroundColor: section === "cuentas" ? C.surface : "transparent", color: C.ink, boxShadow: section === "cuentas" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>Cuentas</button>
         <button onClick={() => setSection("categorias")} className="flex-1 py-2 rounded-lg text-[12.5px] font-semibold" style={{ backgroundColor: section === "categorias" ? C.surface : "transparent", color: C.ink, boxShadow: section === "categorias" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>Categorías</button>
+        <button onClick={() => setSection("planificados")} className="flex-1 py-2 rounded-lg text-[12.5px] font-semibold" style={{ backgroundColor: section === "planificados" ? C.surface : "transparent", color: C.ink, boxShadow: section === "planificados" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>Planificados</button>
         <button onClick={() => setSection("ajustes")} className="flex-1 py-2 rounded-lg text-[12.5px] font-semibold" style={{ backgroundColor: section === "ajustes" ? C.surface : "transparent", color: C.ink, boxShadow: section === "ajustes" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>Ajustes</button>
       </div>
 
@@ -1936,6 +2023,42 @@ function Mas({ accounts, setAccounts, categories, setCategories, transactions, s
           {editingCat === undefined && (
             <button onClick={() => setEditingCat(null)} className="w-full py-3 rounded-xl text-[13.5px] font-semibold flex items-center justify-center gap-1.5" style={{ backgroundColor: "#F1F3F6", color: C.ink }}>
               <Plus size={16} /> Añadir categoría
+            </button>
+          )}
+        </>
+      ) : section === "planificados" ? (
+        <>
+          <Card>
+            <p className="text-[12.5px]" style={{ color: C.inkSoft }}>
+              Pagos que se repiten cada mes (alquiler, suscripciones, seguros...). Te avisamos cuando falten 3 días o menos.
+            </p>
+          </Card>
+          {editingPlan !== undefined && <PlanificadoForm editing={editingPlan || null} accounts={accounts} categories={categories} onSave={savePlan} onCancel={() => setEditingPlan(undefined)} />}
+          {plannedExpenses.length === 0 && editingPlan === undefined ? (
+            <Card><p className="text-[13px] py-4 text-center" style={{ color: C.muted }}>Aún no tienes gastos planificados.</p></Card>
+          ) : (
+            <Card>
+              <div className="divide-y" style={{ borderColor: C.border }}>
+                {plannedExpenses.map((p) => {
+                  const cat = categories.find((c) => c.id === p.categoryId);
+                  return (
+                    <div key={p.id} className="flex items-center gap-2.5 py-2.5">
+                      {cat ? <CatBadge cat={cat} size={34} /> : <SolidIconBadge icon="HelpCircle" color={C.inkSoft} size={34} />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13.5px] font-medium truncate" style={{ color: C.ink }}>{p.name}</p>
+                        <p className="text-[12px]" style={{ color: C.muted }}>{eur(p.amount)} · día {p.dueDay} de cada mes</p>
+                      </div>
+                      <button onClick={() => setEditingPlan(p)} className="p-2"><Pencil size={15} color={C.inkSoft} /></button>
+                      <button onClick={() => deletePlan(p.id)} className="p-2"><Trash2 size={15} color={C.rose} /></button>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+          {editingPlan === undefined && (
+            <button onClick={() => setEditingPlan(null)} className="w-full py-3 rounded-xl text-[13.5px] font-semibold flex items-center justify-center gap-1.5" style={{ backgroundColor: "#F1F3F6", color: C.ink }}>
+              <Plus size={16} /> Añadir gasto planificado
             </button>
           )}
         </>
@@ -2490,7 +2613,7 @@ function SwitchRow({ label, hint, value, onChange, Icn, color }) {
 
 const NOTIF_DEFAULTS = {
   enabled: true, dailyReminder: true, overspendAlert: true, salaryCompare: true, expenseCompare: true, stats: true, browserPush: false,
-  budgetAlert: true, goalReached: true,
+  budgetAlert: true, goalReached: true, plannedExpense: true,
 };
 
 function InsightRow({ insight }) {
@@ -2549,6 +2672,8 @@ function NotificationsPanel({ open, onClose, insights, settings, updateSettings,
                 value={notif.budgetAlert} onChange={(v) => updateSettings({ notifications: { ...notif, budgetAlert: v } })} Icn={AlertTriangle} color="#E08E45" />
               <SwitchRow label="Metas de ahorro alcanzadas" hint="Avisa cuando llegas a una meta de ahorro"
                 value={notif.goalReached} onChange={(v) => updateSettings({ notifications: { ...notif, goalReached: v } })} Icn={Trophy} color={C.gold} />
+              <SwitchRow label="Gastos planificados" hint="Avisa cuando se acerca la fecha de un pago planificado"
+                value={notif.plannedExpense} onChange={(v) => updateSettings({ notifications: { ...notif, plannedExpense: v } })} Icn={CalendarDays} color={C.blue} />
             </div>
           </Card>
 
@@ -2739,6 +2864,7 @@ export default function App() {
   const [fabExpanded, setFabExpanded] = useState(false);
   const [sim, setSim] = useState({ initial: "0", monthly: "100", rate: "0", mode: "goal", goal: "1000", months: "12" });
   const [goals, setGoals] = useState([]);
+  const [plannedExpenses, setPlannedExpenses] = useState([]);
   const [settings, setSettings] = useState({
     decimals: 2, thousands: "es", symbolVisible: true, symbolSide: "right",
     weekStart: "monday", dateOrder: "dmy", includeTransfers: true,
@@ -2790,6 +2916,10 @@ export default function App() {
         const g = await window.storage.get("savings-goals");
         setGoals(JSON.parse(g.value));
       } catch { /* keep defaults */ }
+      try {
+        const pe = await window.storage.get("planned-expenses");
+        setPlannedExpenses(JSON.parse(pe.value));
+      } catch { /* keep defaults */ }
       let loadedSettings = null;
       try {
         const st = await window.storage.get("settings");
@@ -2832,6 +2962,7 @@ export default function App() {
   useEffect(() => { if (!loading) safeSet("transactions", transactions); }, [transactions, loading]);
   useEffect(() => { if (!loading) safeSet("savings-sim", sim); }, [sim, loading]);
   useEffect(() => { if (!loading) safeSet("savings-goals", goals); }, [goals, loading]);
+  useEffect(() => { if (!loading) safeSet("planned-expenses", plannedExpenses); }, [plannedExpenses, loading]);
   useEffect(() => { if (!loading) safeSet("settings", settings); }, [settings, loading]);
   useEffect(() => { if (!loading) safeSet("dash-account-filter", accountFilter); }, [accountFilter, loading]);
   useEffect(() => {
@@ -2866,7 +2997,7 @@ export default function App() {
   // Insights recompute whenever the underlying data changes. They're cheap
   // (a handful of array scans over the transaction list) so no extra memoization ceremony is needed.
   const notifSettings = { ...NOTIF_DEFAULTS, ...settings.notifications };
-  const allInsights = useMemo(() => (loading ? [] : computeInsights(accounts, categories, transactions, new Date(), settings.budgets, goals)), [accounts, categories, transactions, loading, settings.budgets, goals]);
+  const allInsights = useMemo(() => (loading ? [] : computeInsights(accounts, categories, transactions, new Date(), settings.budgets, goals, plannedExpenses)), [accounts, categories, transactions, loading, settings.budgets, goals, plannedExpenses]);
   const visibleInsights = notifSettings.enabled ? allInsights.filter((i) => notifSettings[i.kind] !== false) : [];
 
   const requestPush = useCallback(async () => {
@@ -2990,6 +3121,7 @@ export default function App() {
           {tab === "mas" && (
             <Mas accounts={accounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories}
               transactions={transactions} setTransactions={setTransactions} settings={settings} updateSettings={updateSettings}
+              plannedExpenses={plannedExpenses} setPlannedExpenses={setPlannedExpenses}
               openNotifications={() => setNotifOpen(true)} />
           )}
         </main>
