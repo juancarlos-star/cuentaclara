@@ -2811,6 +2811,19 @@ function Ajustes({ accounts, categories, transactions, setAccounts, setCategorie
           </div>
         </Card>
       </SettingsGroup>
+
+      <SettingsGroup label="Legal" Icn={ShieldCheck} open={!!openGroups.legal} onToggle={() => toggleGroup("legal")}>
+        <Card>
+          <a href="/privacidad.html" target="_blank" rel="noopener noreferrer"
+            className="w-full py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5"
+            style={{ border: `1.5px solid ${C.primary}`, color: C.primary, textDecoration: "none" }}>
+            <ShieldCheck size={15} /> Política de privacidad
+          </a>
+          <p className="text-[11.5px] text-center mt-3" style={{ color: C.muted }}>
+            Cuenta Clara v1.0 · Desarrollado por Juan Carlos Calderón
+          </p>
+        </Card>
+      </SettingsGroup>
     </div>
   );
 }
