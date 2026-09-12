@@ -3021,10 +3021,17 @@ function ProfileMenu({ open, onClose, tab, setTab }) {
 
 /* ---------------------------------- LOCK SCREEN ---------------------------------- */
 
-function LockScreen({ appLock, onUnlock }) {
+function LockScreen({ appLock, onUnlock, onReset }) {
   const [entry, setEntry] = useState("");
   const [error, setError] = useState(false);
   const [tryingBio, setTryingBio] = useState(false);
+
+  const forgotPin = () => {
+    const ok = window.confirm(
+      "Esto quitará el PIN y la huella de este dispositivo. Tus cuentas, categorías y movimientos NO se borran. ¿Continuar?"
+    );
+    if (ok) onReset();
+  };
 
   const tryBiometric = useCallback(async () => {
     if (!appLock.biometric || !appLock.credId) return;
@@ -3090,6 +3097,9 @@ function LockScreen({ appLock, onUnlock }) {
         </button>
       </div>
       {error && <p className="text-[12.5px] mt-4" style={{ color: C.rose }}>PIN incorrecto, inténtalo de nuevo.</p>}
+      <button onClick={forgotPin} className="text-[12.5px] mt-6 underline" style={{ color: C.muted }}>
+        ¿Has olvidado tu PIN o no funciona la huella?
+      </button>
     </div>
   );
 }
@@ -3314,7 +3324,19 @@ export default function App() {
   };
 
   if (!loading && settings.appLock?.enabled && !unlocked) {
-    return <LockScreen appLock={settings.appLock} onUnlock={() => setUnlocked(true)} />;
+    return (
+      <LockScreen
+        appLock={settings.appLock}
+        onUnlock={() => setUnlocked(true)}
+        onReset={() => {
+          setSettings((s) => ({
+            ...s,
+            appLock: { enabled: false, pin: null, pinSalt: null, biometric: false, credId: null },
+          }));
+          setUnlocked(true);
+        }}
+      />
+    );
   }
 
   if (loading) {
