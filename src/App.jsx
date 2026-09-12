@@ -3047,7 +3047,10 @@ function LockScreen({ appLock, onUnlock, onReset }) {
     if (ok) onUnlock();
   }, [appLock, onUnlock]);
 
-  useEffect(() => { if (appLock.biometric && appLock.credId) tryBiometric(); }, []); // eslint-disable-line
+  // Nota: no se lanza la huella automáticamente al abrir esta pantalla.
+  // Sin un toque explícito del usuario justo antes, Android/Chrome deja la
+  // petición colgada (o la bloquea) en vez de mostrar el diálogo, así que
+  // el botón de abajo debe pulsarse a mano cada vez.
 
   const press = async (d) => {
     setError(false);
