@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cuenta Clara — Recuperar acceso</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; background:#F1F6FC; color:#0F1B2D;
+      display:flex; min-height:100vh; align-items:center; justify-content:center; margin:0; padding:24px; }
+    .card { background:#fff; border-radius:20px; padding:28px; max-width:380px; width:100%;
+      box-shadow:0 4px 20px rgba(0,0,0,0.08); text-align:center; }
+    h1 { font-size:18px; margin:0 0 12px; }
+    p { font-size:14px; line-height:1.5; color:#5B6B82; }
+    button { margin-top:16px; background:#1D63D1; color:#fff; border:none; border-radius:999px;
+      padding:14px 24px; font-size:15px; font-weight:600; width:100%; }
+    button:disabled { opacity:0.5; }
+    .ok { color:#1D9C6B; font-weight:600; }
+    .err { color:#D14343; font-weight:600; }
+    a { color:#1D63D1; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Recuperar acceso a Cuenta Clara</h1>
+    <p id="msg">Esto quitará el PIN y la huella configurados en este dispositivo. Tus cuentas, categorías y movimientos NO se tocan ni se borran.</p>
+    <button id="btn">Quitar bloqueo</button>
+  </div>
+  <script>
+    var btn = document.getElementById('btn');
+    var msg = document.getElementById('msg');
+    btn.addEventListener('click', function () {
+      try {
+        var raw = localStorage.getItem('cuenta-clara:settings');
+        if (raw) {
+          var settings = JSON.parse(raw);
+          settings.appLock = { enabled: false, pin: null, pinSalt: null, biometric: false, credId: null };
+          localStorage.setItem('cuenta-clara:settings', JSON.stringify(settings));
+        }
+        msg.innerHTML = '<span class="ok">Listo. El bloqueo se ha quitado.</span><br><br>Ahora abre <a href="/">Cuenta Clara</a> normalmente (o vuelve a la app desde el icono de inicio).';
+        btn.style.display = 'none';
+      } catch (e) {
+        msg.innerHTML = '<span class="err">No se pudo leer el almacenamiento: ' + e.message + '</span>';
+      }
+    });
+  </script>
+</body>
+</html>
