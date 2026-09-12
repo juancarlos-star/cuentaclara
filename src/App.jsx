@@ -3062,6 +3062,15 @@ function LockScreen({ appLock, onUnlock, onReset }) {
       <p className="text-[16px] font-bold mt-3" style={{ color: C.ink }}>Cuenta Clara</p>
       <p className="text-[12.5px] mb-6" style={{ color: C.muted }}>Introduce tu PIN para continuar</p>
 
+      {appLock.biometric && appLock.credId && (
+        <button onClick={tryBiometric} disabled={tryingBio}
+          className="w-full flex items-center justify-center gap-2 rounded-full mb-6 font-semibold text-[14px]"
+          style={{ maxWidth: 260, height: 52, backgroundColor: C.primarySoft, color: C.primary, border: `1px solid ${C.primary}` }}>
+          <Fingerprint size={20} color={C.primary} />
+          {tryingBio ? "Comprobando..." : "Usar huella / Face ID"}
+        </button>
+      )}
+
       <div className="flex gap-3 mb-6" style={{ animation: error ? "shake 0.3s" : "none" }}>
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <span key={i} className="rounded-full" style={{
@@ -3079,14 +3088,7 @@ function LockScreen({ appLock, onUnlock, onReset }) {
             {d}
           </button>
         ))}
-        <div className="flex items-center justify-center">
-          {appLock.biometric && appLock.credId ? (
-            <button onClick={tryBiometric} disabled={tryingBio} className="rounded-full flex items-center justify-center"
-              style={{ width: 72, height: 72, backgroundColor: C.surface, border: `1px solid ${C.border}`, boxShadow: CHIP_SHADOW }}>
-              <Fingerprint size={26} color={C.primary} />
-            </button>
-          ) : <div style={{ width: 72, height: 72 }} />}
-        </div>
+        <div style={{ width: 72, height: 72 }} />
         <button onClick={() => press("0")} className="rounded-full flex items-center justify-center text-[20px] font-semibold"
           style={{ width: 72, height: 72, backgroundColor: C.surface, color: C.ink, border: `1px solid ${C.border}`, boxShadow: CHIP_SHADOW }}>
           0
