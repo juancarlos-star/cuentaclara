@@ -2471,14 +2471,20 @@ async function registerBiometric() {
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         rp: { name: WEBAUTHN_RP_NAME },
-        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "usuario-cuenta-clara", displayName: "Usuario" },
+        // Nombre único por intento: algunos gestores de credenciales (p. ej.
+        // el Gestor de contraseñas de Google en Android) rechazan crear una
+        // segunda passkey de plataforma con el mismo nombre de usuario.
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: `usuario-cuenta-clara-${Date.now()}`, displayName: "Usuario" },
         pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
         authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
         timeout: 60000,
       },
     });
-    return cred ? btoa(String.fromCharCode(...new Uint8Array(cred.rawId))) : null;
-  } catch { return null; }
+    return { credId: cred ? btoa(String.fromCharCode(...new Uint8Array(cred.rawId))) : null, error: null };
+  } catch (e) {
+    console.error("No se pudo crear la credencial WebAuthn:", e);
+    return { credId: null, error: (e && (e.name || e.message)) || "desconocido" };
+  }
 }
 async function verifyBiometric(credId) {
   try {
@@ -2532,9 +2538,9 @@ function SeguridadAjustes({ settings, updateSettings }) {
   };
   const toggleBiometric = async (v) => {
     if (!v) { updateSettings({ appLock: { ...appLock, biometric: false, credId: null } }); return; }
-    const credId = await registerBiometric();
+    const { credId, error } = await registerBiometric();
     if (credId) updateSettings({ appLock: { ...appLock, biometric: true, credId } });
-    else window.alert("No se pudo registrar la huella / Face ID en este dispositivo.");
+    else window.alert(`No se pudo registrar la huella / Face ID en este dispositivo.\n\nMotivo: ${error}`);
   };
 
   return (
