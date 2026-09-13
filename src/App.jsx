@@ -2470,13 +2470,17 @@ async function registerBiometric() {
     const cred = await navigator.credentials.create({
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rp: { name: WEBAUTHN_RP_NAME },
+        rp: { id: window.location.hostname, name: WEBAUTHN_RP_NAME },
         // Nombre único por intento: algunos gestores de credenciales (p. ej.
         // el Gestor de contraseñas de Google en Android) rechazan crear una
         // segunda passkey de plataforma con el mismo nombre de usuario.
         user: { id: crypto.getRandomValues(new Uint8Array(16)), name: `usuario-cuenta-clara-${Date.now()}`, displayName: "Usuario" },
         pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
-        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+        // residentKey: "discouraged" evita que Android intente crear una
+        // passkey sincronizada con el Gestor de contraseñas de Google (lo
+        // que puede fallar con OperationError sin cuenta de Google lista) y
+        // pide en su lugar una credencial local normal, como antes.
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "discouraged", requireResidentKey: false },
         timeout: 60000,
       },
     });
@@ -2493,6 +2497,7 @@ async function verifyBiometric(credId) {
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         allowCredentials: [{ id: idBytes, type: "public-key" }],
+        rpId: window.location.hostname,
         userVerification: "required", timeout: 20000,
       },
     });
