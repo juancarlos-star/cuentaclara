@@ -2493,11 +2493,14 @@ async function verifyBiometric(credId) {
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         allowCredentials: [{ id: idBytes, type: "public-key" }],
-        userVerification: "required", timeout: 60000,
+        userVerification: "required", timeout: 20000,
       },
     });
-    return !!assertion;
-  } catch { return false; }
+    return { ok: !!assertion, error: null };
+  } catch (e) {
+    console.error("No se pudo verificar la credencial WebAuthn:", e);
+    return { ok: false, error: (e && (e.name || e.message)) || "desconocido" };
+  }
 }
 // Hash real del PIN (SHA-256 vía Web Crypto API, integrada en el navegador)
 // con una sal aleatoria por instalación. A diferencia de btoa(), esto NO es
@@ -3039,12 +3042,15 @@ function LockScreen({ appLock, onUnlock, onReset }) {
     if (ok) onReset();
   };
 
+  const [bioError, setBioError] = useState("");
   const tryBiometric = useCallback(async () => {
     if (!appLock.biometric || !appLock.credId) return;
     setTryingBio(true);
-    const ok = await verifyBiometric(appLock.credId);
+    setBioError("");
+    const { ok, error } = await verifyBiometric(appLock.credId);
     setTryingBio(false);
     if (ok) onUnlock();
+    else setBioError(error || "no verificado");
   }, [appLock, onUnlock]);
 
   // Nota: no se lanza la huella automáticamente al abrir esta pantalla.
@@ -3078,6 +3084,11 @@ function LockScreen({ appLock, onUnlock, onReset }) {
           <Fingerprint size={20} color={C.primary} />
           {tryingBio ? "Comprobando..." : "Usar huella / Face ID"}
         </button>
+      )}
+      {bioError && (
+        <p className="text-[12px] mb-4" style={{ color: C.rose, maxWidth: 260, textAlign: "center" }}>
+          Huella: {bioError}
+        </p>
       )}
 
       <div className="flex gap-3 mb-6" style={{ animation: error ? "shake 0.3s" : "none" }}>
