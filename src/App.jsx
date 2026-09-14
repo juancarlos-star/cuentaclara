@@ -3058,10 +3058,19 @@ function LockScreen({ appLock, onUnlock, onReset }) {
     else setBioError(error || "no verificado");
   }, [appLock, onUnlock]);
 
-  // Nota: no se lanza la huella automáticamente al abrir esta pantalla.
-  // Sin un toque explícito del usuario justo antes, Android/Chrome deja la
-  // petición colgada (o la bloquea) en vez de mostrar el diálogo, así que
-  // el botón de abajo debe pulsarse a mano cada vez.
+  // Lanza la huella automáticamente al abrir esta pantalla. En algunos
+  // navegadores/dispositivos (sobre todo Android/Chrome) WebAuthn puede
+  // bloquear o dejar colgada la petición si no hay un toque explícito del
+  // usuario justo antes; el icono de huella del teclado sigue disponible
+  // como alternativa manual si el diálogo automático no aparece.
+  const autoBioTried = useRef(false);
+  useEffect(() => {
+    if (autoBioTried.current) return;
+    if (appLock.biometric && appLock.credId) {
+      autoBioTried.current = true;
+      tryBiometric();
+    }
+  }, [appLock.biometric, appLock.credId, tryBiometric]);
 
   const press = async (d) => {
     setError(false);
@@ -3082,20 +3091,6 @@ function LockScreen({ appLock, onUnlock, onReset }) {
       <p className="text-[16px] font-bold mt-3" style={{ color: C.ink }}>Cuenta Clara</p>
       <p className="text-[12.5px] mb-6" style={{ color: C.muted }}>Introduce tu PIN para continuar</p>
 
-      {appLock.biometric && appLock.credId && (
-        <button onClick={tryBiometric} disabled={tryingBio}
-          className="w-full flex items-center justify-center gap-2 rounded-full mb-6 font-semibold text-[14px]"
-          style={{ maxWidth: 260, height: 52, backgroundColor: C.primarySoft, color: C.primary, border: `1px solid ${C.primary}` }}>
-          <Fingerprint size={20} color={C.primary} />
-          {tryingBio ? "Comprobando..." : "Usar huella / Face ID"}
-        </button>
-      )}
-      {bioError && (
-        <p className="text-[12px] mb-4" style={{ color: C.rose, maxWidth: 260, textAlign: "center" }}>
-          Huella: {bioError}
-        </p>
-      )}
-
       <div className="flex gap-3 mb-6" style={{ animation: error ? "shake 0.3s" : "none" }}>
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <span key={i} className="rounded-full" style={{
@@ -3113,7 +3108,14 @@ function LockScreen({ appLock, onUnlock, onReset }) {
             {d}
           </button>
         ))}
-        <div style={{ width: 72, height: 72 }} />
+        {appLock.biometric && appLock.credId ? (
+          <button onClick={tryBiometric} disabled={tryingBio} className="rounded-full flex items-center justify-center"
+            style={{ width: 72, height: 72, backgroundColor: C.primarySoft, color: C.primary, border: `1px solid ${C.primary}`, opacity: tryingBio ? 0.6 : 1 }}>
+            <Fingerprint size={26} color={C.primary} />
+          </button>
+        ) : (
+          <div style={{ width: 72, height: 72 }} />
+        )}
         <button onClick={() => press("0")} className="rounded-full flex items-center justify-center text-[20px] font-semibold"
           style={{ width: 72, height: 72, backgroundColor: C.surface, color: C.ink, border: `1px solid ${C.border}`, boxShadow: CHIP_SHADOW }}>
           0
@@ -3123,6 +3125,12 @@ function LockScreen({ appLock, onUnlock, onReset }) {
           <X size={20} />
         </button>
       </div>
+      {tryingBio && <p className="text-[12.5px] mt-2" style={{ color: C.muted }}>Comprobando...</p>}
+      {bioError && (
+        <p className="text-[12px] mt-2" style={{ color: C.rose, maxWidth: 260, textAlign: "center" }}>
+          Huella: {bioError}
+        </p>
+      )}
       {error && <p className="text-[12.5px] mt-4" style={{ color: C.rose }}>PIN incorrecto, inténtalo de nuevo.</p>}
       <button onClick={forgotPin} className="text-[12.5px] mt-6 underline" style={{ color: C.muted }}>
         ¿Has olvidado tu PIN o no funciona la huella?
