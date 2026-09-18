@@ -3000,7 +3000,22 @@ function LockScreen({ appLock, onUnlock }) {
     if (ok) onUnlock();
   }, [appLock, onUnlock]);
 
-  useEffect(() => { if (appLock.biometric && appLock.credId) tryBiometric(); }, []); // eslint-disable-line
+  useEffect(() => {
+    if (!(appLock.biometric && appLock.credId)) return;
+    // En Android, pedir la huella automaticamente en el instante exacto del
+    // montaje (antes de que la ventana tenga foco real) hace que el sistema
+    // descarte la solicitud sin avisar -por eso fallaba el intento automatico
+    // pero el manual (con un toque real del usuario) si funcionaba. Aqui se
+    // espera a tener foco confirmado, con un pequeno margen extra.
+    let cancelled = false;
+    const attempt = () => { if (!cancelled) tryBiometric(); };
+    if (document.hasFocus()) {
+      const t = setTimeout(attempt, 250);
+      return () => { cancelled = true; clearTimeout(t); };
+    }
+    window.addEventListener("focus", attempt, { once: true });
+    return () => { cancelled = true; window.removeEventListener("focus", attempt); };
+  }, []); // eslint-disable-line
 
   const press = async (d) => {
     setError(false);
